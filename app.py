@@ -22,26 +22,32 @@ def authenticate_youtube():
     # If there are no (valid) credentials available, let the user log in
     if not creds or not creds.valid:
         if creds and creds.expired and creds.refresh_token:
-            creds.refresh(Request())
-        else:
-            flow = InstalledAppFlow.from_client_secrets_file(CLIENT_SECRETS_FILE, SCOPES)
-            flow.redirect_uri = 'http://localhost:8080'  # Redirect URI for your app
-            auth_url, _ = flow.authorization_url(prompt='consent')
+            try:
+                creds.refresh(Request())
+                return creds
+            except:
+                pass
+        flow = InstalledAppFlow.from_client_secrets_file(CLIENT_SECRETS_FILE, SCOPES)
+        flow.redirect_uri = 'http://localhost:8080'  # Redirect URI for your app
+        auth_url, _ = flow.authorization_url(prompt='consent')
 
-            # Display the URL for the user to visit
-            st.write(f'Please go to this URL: [Authorize Here]({auth_url})')
+        # Display the URL for the user to visit
+        st.write(f'Please go to this URL: [Authorize Here]({auth_url})')
 
-            # Create a text input for the authorization code
-            code = st.text_input('Enter the authorization code:')
-            if code:
-                flow.fetch_token(code=code)
-                creds = flow.credentials
+        # Create a text input for the authorization code
+        code = st.text_input('Enter the authorization code:')
+        if code:
+            if "http" in code:
+                # http://localhost:8080/?state=oqwylM1WDiHD5gYXBLiFK0Bzp2s6sO&code=4/0AVG7fiTvJQKPlR6fOOo38xeBL3ZrEUg0qOrDAujqYSxgBd7SPXqztMZ4GpSfH8946IWqOw&scope=https://www.googleapis.com/auth/youtube.readonly
+                code = code.split("code=")[1].split("&scope")[0]
+            flow.fetch_token(code=code)
+            creds = flow.credentials
 
-                # Save the credentials for the next run
-                with open('token.json', 'w') as token:
-                    token.write(creds.to_json())
+            # Save the credentials for the next run
+            with open('token.json', 'w') as token:
+                token.write(creds.to_json())
 
-                st.success('Authentication successful!')
+            st.success('Authentication successful!')
 
     return creds
 
