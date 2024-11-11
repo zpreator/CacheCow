@@ -83,7 +83,8 @@ def add_movie_to_radarr(movie_title, movie_year):
         elif response.status_code == 400:
             # Check if the movie already exists
             if "MovieExistsValidator" in str(response.json()):
-                print(f'Movie already exists: {movie_title} ({movie_year})')
+                # print(f'Movie already exists: {movie_title} ({movie_year})')
+                pass
             else:
                 print(f'Failed to add movie: {response.status_code} - {response.text}')
         else:
