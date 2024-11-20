@@ -4,10 +4,14 @@ import subprocess
 import sys
 import json
 from datetime import datetime
-subprocess.check_call([sys.executable, '-m', 'pip', 'install', '--upgrade', 'yt_dlp'])
+subprocess.check_call(
+    [sys.executable, '-m', 'pip', 'install', '--upgrade', 'yt_dlp'], 
+    stdout=subprocess.DEVNULL,  # Suppresses output
+    stderr=subprocess.DEVNULL  # Suppresses output
+)
 
-print(f"\nStarting run at: {datetime.now().isoformat()}")
-print("="*100)
+# print(f"\nStarting run at: {datetime.now().isoformat()}")
+# print("="*100)
 
 playlists_path = r"/home/glados/SharedMedia/Media/YouTube/config.json"
 archive_path = r"/home/glados/SharedMedia/Media/YouTube/archive.txt"
@@ -21,9 +25,9 @@ def my_hook(d):
 with open(playlists_path, 'r') as file:
     config = json.load(file)
     for name in config["youtube"].keys():
-        if config["youtube"][name]["subscribe"] and "ToDownload" in name:
+        if config["youtube"][name]["subscribe"]:
             try:
-                print(f"Checking {name}")
+                # print(f"Checking {name}")
                 date_range = 'now-8days'
                 playlist_items = '1-5'
                 if "ToDownload" == name:
@@ -46,8 +50,8 @@ with open(playlists_path, 'r') as file:
                         {'key': 'FFmpegMetadata'},
                         {'key': 'EmbedThumbnail'},
                     ],
-                    # 'quiet': True,
-                    # 'noprogress': True
+                    'quiet': True,
+                    'noprogress': True
                 }
                 with youtube_dl.YoutubeDL(ydl_opts) as ydl:
                     ydl.download([link.strip()])
