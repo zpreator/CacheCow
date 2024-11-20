@@ -21,9 +21,9 @@ def my_hook(d):
 with open(playlists_path, 'r') as file:
     config = json.load(file)
     for name in config["youtube"].keys():
-        if config["youtube"][name]["subscribe"]:
+        if config["youtube"][name]["subscribe"] and "ToDownload" in name:
             try:
-                # print(f"Checking {name}")
+                print(f"Checking {name}")
                 date_range = 'now-8days'
                 playlist_items = '1-5'
                 if "ToDownload" == name:
@@ -33,7 +33,7 @@ with open(playlists_path, 'r') as file:
                 link = config["youtube"][name]["link"]
                 ydl_opts = {
                     'daterange': youtube_dl.DateRange(date_range),
-                    'format': 'bestvideo[ext=mp4][height<=1080]+bestaudio[ext=m4a]/bestvideo+bestaudio',
+                    'format': 'bestvideo[ext=mp4][vcodec!*=av1][vcodec!*=av01][height<=1080]+bestaudio[ext=m4a]/bestvideo+bestaudio',
                     'merge_output_format': 'mp4',
                     'playlist_items': playlist_items,
                     'download_archive': '/home/glados/SharedMedia/Media/YouTube/archive.txt',
@@ -46,7 +46,7 @@ with open(playlists_path, 'r') as file:
                         {'key': 'FFmpegMetadata'},
                         {'key': 'EmbedThumbnail'},
                     ],
-                    'quiet': True,
+                    # 'quiet': True,
                     # 'noprogress': True
                 }
                 with youtube_dl.YoutubeDL(ydl_opts) as ydl:
