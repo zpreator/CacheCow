@@ -13,7 +13,8 @@ def delete_old_files(directory, months):
     for root, dirs, files in os.walk(directory):
         for file in files:
             print(file)
-            if os.path.splitext(file)[1] == ".txt":
+            file_ext = os.path.splitext(file)[1]
+            if file_ext == ".txt" or file_ext == 'jpg':
                 continue
             file_path = os.path.join(root, file)
             print(f"Found file: {file_path}")
