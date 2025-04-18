@@ -1,134 +1,80 @@
-# Youtubedl and Radarr Integration
 
-This project does 3 things:
-1. Hosts a web UI for managing youtube downloads (Docker, streamlit)
-2. A python script for downloading youtube videos from curated list of creators (via cronjob)
-3. A python script for adding movies to Radarr from my letterboxd wishlist (via cronjob)
+# YouTube Downloader App
 
-## Web UI
+This is a YouTube downloader app that can automatically download videos from your subscribed YouTube channels or manually specified channels. You can also manage downloaded content through a web interface built with Python and Streamlit.
 
-The webui presents all your youtube subsriptions with checkboxes to curate. 
-*Only edits a config file, which is then used in the python script for youtube download.
+## 🚀 Getting Started
 
-![image](https://github.com/user-attachments/assets/81ae0e0d-4a30-464f-bbe9-a33756af8d3f)
+### 1. Install Docker & Docker Compose
 
-## Youtube Download
+If you don’t already have Docker installed, please follow the instructions in the official Docker documentation:
 
-Uses the config file generated from the Web UI to download youtube videos using youtubedl
+- **Docker:** https://docs.docker.com/get-docker/
+- **Docker Compose:** https://docs.docker.com/compose/install/
 
-## Letterboxd to Radarr
+### 2. Clone the Project
 
-Scrapes the public watchlist of a letterboxd account to add to Radarr
+Clone the repository to your local machine:
 
-## Server Setup
-
-This is mostly my notes for how to set this up.
-
-### Radarr
-
-### Prowlarr
-
-### Qbittorrent
-
-### Windscribe
-Using tightvncserver, login to the desktop, install the windscribe linux app (gui) and login.
-
-Adjust the settings to:
-
-1. Start on computer boot (Should start as soon as vncserver starts on reboot)
-2. Firewall always on (when windscribe quits, stop all internet traffic)
-3. Allow lan connections (allow local connections. Turning this off will lock you out!!)
-### Install tightvncserver
-I am using the paid Windscribe VPN.
-
-Windscribe VPN has a cli, but I found the GUI to work better and have more options (split tunneling, killswitch etc.)
-
-So in order to get windscribe to launch reliably on reboot on a headless ubuntu server, I need a virtual desktop. Hence, tightvncserver which can create a virtual desktop on reboot
-
-Install tightvncserver and dependencies
-```
-sudo apt update
-sudo apt install tightvncserver xfce4 xfce4-goodies
-```
-
-Test server (switch :1 with :2 or :<num> for different IDs)
-```
-tightvncserver :1
-```
-
-If no errors, kill the server
-```
-tightvncserver -kill :1
-```
-
-Create vnc startup config
-```
-nano ~/.vnc/xstartup
-```
-
-Add the following for a light desktop experience
 ```bash
-#!/bin/sh
-unset SESSION_MANAGER
-unset DBUS_SESSION_BUS_ADDRESS
-exec startxfce4 &
+git clone https://github.com/your-username/your-repo-name.git
+cd your-repo-name
 ```
 
+### 3. Set Up the Docker Environment
 
-Create script to auto launch on reboot
-```cmd
-sudo nano /etc/init.d/tightvncserver
-```
+In the root directory of your cloned project, you’ll find a `Dockerfile` and `docker-compose.yml` file. To set up your environment, run:
 
-Fill with the following, making sure to replace the user with the user you are using
 ```bash
-#!/bin/bash
-### BEGIN INIT INFO
-# Provides:          tightvncserver
-# Required-Start:    $local_fs
-# Required-Stop:     $local_fs
-# Default-Start:     2 3 4 5
-# Default-Stop:      0 1 6
-# Short-Description: Start/stop TightVNC server
-### END INIT INFO
-
-# Define the user to start VNC under
-USER="<your_username>"
-DISPLAY=":1"
-
-case "$1" in
-  start)
-    echo "Starting VNC server for $USER on display $DISPLAY"
-    su - $USER -c "/usr/bin/tightvncserver $DISPLAY"
-    ;;
-  stop)
-    echo "Stopping VNC server for $USER on display $DISPLAY"
-    su - $USER -c "/usr/bin/tightvncserver -kill $DISPLAY"
-    ;;
-  restart)
-    $0 stop
-    $0 start
-    ;;
-  *)
-    echo "Usage: /etc/init.d/tightvncserver {start|stop|restart}"
-    exit 1
-    ;;
-esac
-
-exit 0
+docker-compose up --build
 ```
 
-Make the script executable
+This command will build and start all necessary services, including:
+
+- A Streamlit app (for the web interface)
+- The YouTube downloader script
+
+### 4. Access the Web Interface
+
+Once the app is running, open your browser and navigate to:
+
 ```
-sudo chmod +x /etc/init.d/tightvncserver
+http://localhost:8501
 ```
 
-Add the script to the startup sequence
-```
-sudo update-rc.d tightvncserver defaults
-```
+You’ll be able to interact with the app here!
 
-It should work on reboot, but just to test it manually:
-```
-sudo /etc/init.d/tightvncserver start
-```
+### 5. Set Up Your Configuration
+
+To download content from YouTube, you’ll need to configure the app. Follow the instructions in the [YouTube API Setup Guide](./youtube-config-setup.md) for how to generate your `client_secret.json` and configure OAuth for automatic subscription syncing.
+
+If you prefer not to set up OAuth, you can manually add YouTube channels directly from the web interface.
+
+### 6. Managing Downloads
+
+- Add YouTube channels via the web interface by pasting the channel URL.
+- The app will download the latest videos from the added channels and store them in the specified location on your machine.
+
+## ⚙️ How the App Works
+
+This app leverages **yt-dlp**, a command-line tool for downloading videos, and a Streamlit web interface for ease of use.
+
+The app will:
+1. Use the YouTube Data API (if configured) to fetch the list of videos from your subscriptions.
+2. Download videos with yt-dlp based on your chosen settings.
+3. Organize downloaded content by the channel and video name.
+4. Provide you with a simple interface to manage, update, and delete channels.
+
+## 📝 Notes
+
+- The first time you run the app, it may ask you to authenticate with Google to access YouTube data. This is optional, and you can manually add channels if preferred.
+- You can change the download folder path in the configuration files.
+- To stop the app, use `docker-compose down` to bring down the Docker containers.
+
+## 🛠️ Troubleshooting
+
+If you encounter issues with Docker or Docker Compose, please ensure you have the latest versions installed. You can also refer to the Docker troubleshooting guide here: https://docs.docker.com/config/daemon/
+
+---
+
+Happy downloading! 😊
