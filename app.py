@@ -12,55 +12,6 @@ SCOPES = ['https://www.googleapis.com/auth/youtube.readonly']
 CONFIG_FILE = "data/config.json"
 
 # Function to authenticate and get YouTube subscriptions
-# def authenticate_youtube():
-#     creds = None
-
-#     # Try to load existing credentials
-#     if os.path.exists('token.json'):
-#         try:
-#             creds = Credentials.from_authorized_user_file('token.json', SCOPES)
-#         except Exception as e:
-#             st.warning("Could not load saved credentials. Re-authentication required.")
-#             creds = None
-
-#     # If no valid creds, begin auth flow
-#     if not creds or not creds.valid:
-#         if creds and creds.expired and creds.refresh_token:
-#             try:
-#                 creds.refresh(Request())
-#                 return creds
-#             except Exception as e:
-#                 st.warning("Token expired and could not be refreshed. Re-authentication required.")
-        
-#         # Begin login flow
-#         flow = InstalledAppFlow.from_client_secrets_file(CLIENT_SECRETS_FILE, SCOPES)
-#         # flow.redirect_uri = 'http://localhost:8080'
-#         flow.redirect_uri = 'http://localhost:8501'
-
-#         auth_url, _ = flow.authorization_url(prompt='consent')
-
-#         st.write(f'Please go to this URL to authorize the app: [Authorize Here]({auth_url})')
-
-#         code = st.text_input('Enter the authorization code:')
-#         if code:
-#             try:
-#                 # Handle pasted redirect URLs (common mistake)
-#                 if "http" in code and "code=" in code:
-#                     code = code.split("code=")[1].split("&")[0]
-#                 flow.fetch_token(code=code)
-#                 creds = flow.credentials
-
-#                 # Save credentials to token.json
-#                 with open('token.json', 'w') as token_file:
-#                     token_file.write(creds.to_json())
-
-#                 st.success("Authentication successful!")
-#             except Exception as e:
-#                 st.error(f"Authentication failed: {e}")
-#                 return None
-
-#     return creds
-
 def authenticate_youtube(show_link=True):
     creds = None
 
@@ -140,7 +91,8 @@ def load_config():
             return json.load(f)
     empty_config = {
         "youtube": {},
-        "tags": ["other"]
+        "tags": ["other"],
+        "settings": {}
     }
     return empty_config
 
@@ -153,7 +105,8 @@ def save_config(data):
 def refresh_data(config, creds):
     updated_config = {
         "youtube": {},
-        "tags": config["tags"]
+        "tags": config["tags"],
+        "settings": config["settings"]
     }
 
     subscriptions = get_subscriptions(creds)
@@ -189,73 +142,6 @@ def refresh_data(config, creds):
 
     save_config(updated_config)
     return updated_config
-
-
-# def streamlit_app():
-#     if "creds" not in st.session_state:
-#         st.session_state.creds = None
-    
-#     if not st.session_state.creds:
-#         st.session_state.creds = authenticate_youtube()
-#         st.rerun()
-#     else:
-#         # Load existing config (if any)
-#         config = load_config()
-
-        
-
-#         # Streamlit app layout
-#         st.title("Media Manager")
-
-#         if st.button("Fetch Data"):
-#             config = refresh_data(config, st.session_state.creds)
-
-#         data = {
-#             "youtube": {},
-#         }
-#         st.subheader("Youtube Subscriptions")
-#         num_columns = 5
-#         # Separate the subscriptions into checked and unchecked
-#         checked_subscriptions = [title for title in config["youtube"].keys() if config["youtube"][title]["subscribe"]]
-#         unchecked_subscriptions = [title for title in config["youtube"].keys() if not config["youtube"][title]["subscribe"]]
-#         rows = [i for i in range(0, len(checked_subscriptions), num_columns)]
-#         for row in rows:
-#             cols = st.columns(num_columns)
-#             for i, col in enumerate(cols):
-#                 if row + i < len(checked_subscriptions):
-#                     with col:
-#                         title = checked_subscriptions[row + i]
-#                         # for title in sorted(checked_subscriptions, key=str.casefold):
-#                         selected = config["youtube"][title]["subscribe"]
-#                         tag = config["youtube"][title]["tag"]
-#                         link = config["youtube"][title]["link"]
-#                         image = config["youtube"][title].get("image")
-#                         if image:
-#                             st.image(image)
-#                         data["youtube"][title] = {
-#                             "subscribe": st.checkbox(title, value=selected),
-#                             "tag": st.text_input("Category", value=tag, key=f"tag{title}"),
-#                             "link": link,
-#                             "image": image
-#                         }
-#         with st.expander("Not Checked"):
-#             for title in sorted(unchecked_subscriptions, key=str.casefold):
-#                 selected = config["youtube"][title]["subscribe"]
-#                 tag = config["youtube"][title]["tag"]
-#                 link = config["youtube"][title]["link"]
-#                 image = config["youtube"][title].get("image")
-#                 data["youtube"][title] = {
-#                     "subscribe": st.checkbox(title, value=selected),
-#                     "tag": st.text_input("Category", value=tag, key=f"tag{title}"),
-#                     "link": link,
-#                     "image": image
-#                 }
-
-#         # Save button to write the changes to the config file
-#         if st.button("Save"):
-#             save_config(data)
-#             st.success("Configurations saved!")
-#             st.rerun()
 
 def save_channel_config(config, title, url, tag, image, sub):
     if not title:
@@ -371,16 +257,9 @@ def manage_tags_page():
             st.warning("Tag already exists")
 
     st.markdown("---")
-    # st.subheader("Tags")
 
     # Display and delete existing tags
     if config.get("tags"):
-        # tag_to_delete = st.selectbox("Delete a tag", options=config["tags"])
-        # if tag_to_delete and st.button("Delete Tag"):
-        #     config["tags"].remove(tag_to_delete)
-        #     save_config(config)
-        #     st.success(f"Deleted tag: {tag_to_delete}")
-        #     st.rerun()
         for tag in config.get("tags"):
             cols = st.columns([0.2, 0.5])
             with cols[0]:
@@ -394,17 +273,6 @@ def manage_tags_page():
                         st.rerun()
     else:
         st.info("No tags available.")
-
-    # # Add new tag
-    # new_tag = st.text_input("Add a new tag")
-    # if new_tag and st.button("Add Tag"):
-    #     if new_tag not in config["tags"]:
-    #         config["tags"].append(new_tag)
-    #         save_config(config)
-    #         st.success(f"Added tag: {new_tag}")
-    #         st.rerun()
-    #     else:
-    #         st.warning("Tag already exists")
 
 
 def auth_setup_page():
@@ -433,24 +301,58 @@ def auth_setup_page():
             f.write(file.getbuffer())
         st.success("Successfully saved your client_secret.json")
 
+def settings_page():
+    st.title("Settings")
+    config = load_config()
+    current_path = config.get("settings", {}).get("download_path", "")
+    
+    # Track whether user is editing
+    if "editing_download_path" not in st.session_state:
+        st.session_state.editing_download_path = not bool(current_path)
+
+    st.subheader("Download Location")
+
+    if not st.session_state.editing_download_path and current_path:
+        cols = st.columns([0.85, 0.15])
+        cols[0].markdown(f"**Current path:** `{current_path}`")
+        if cols[1].button("Edit"):
+            st.session_state.editing_download_path = True
+    else:
+        new_path = st.text_input("Enter path to download folder:", value=current_path, placeholder="/home/user/Downloads")
+        
+        if new_path and not os.path.isdir(new_path):
+            st.error("⚠️ This folder does not exist.")
+        else:
+            if st.button("Save Path"):
+                config.setdefault("settings", {})["download_path"] = new_path
+                save_config(config)
+                st.session_state.editing_download_path = False
+                st.success("✅ Download path saved.")
+                st.rerun()
 
 def streamlit_app():
-    st.sidebar.title("Navigation")
-    if st.query_params.get("code"):
-        authenticate_youtube(show_link=False)
-    page = st.sidebar.radio("Go to", ["Subscriptions","Add Channel", "Manage Tags", "Auth Setup"])
+    config = load_config()
+    if not config.get("settings") or not config["settings"].get("download_path"):
+        settings_page()
+    else:
+        st.sidebar.title("Navigation")
+        if st.query_params.get("code"):
+            authenticate_youtube(show_link=False)
+        page = st.sidebar.radio("Go to", ["Subscriptions","Add Channel", "Manage Tags", "Auth Setup", "Settings"])
 
-    if "creds" not in st.session_state:
-        st.session_state.creds = None
+        if "creds" not in st.session_state:
+            st.session_state.creds = None
 
-    if page == "Auth Setup":
-        auth_setup_page()
-    elif page == "Add Channel":
-        add_channel_page()
-    elif page == "Manage Tags":
-        manage_tags_page()
-    elif page == "Subscriptions":
-        youtube_page()
+        if page == "Auth Setup":
+            auth_setup_page()
+        elif page == "Add Channel":
+            add_channel_page()
+        elif page == "Manage Tags":
+            manage_tags_page()
+        elif page == "Subscriptions":
+            youtube_page()
+        elif page == "Settings":
+            settings_page()
 
 if __name__ == '__main__':
     # Start the Streamlit app
