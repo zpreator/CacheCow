@@ -2,3 +2,5 @@ venv/
 data/
 client_secret.json
 token.json
+*.log
+*.pid

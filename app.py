@@ -4,12 +4,17 @@ from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build
 import streamlit as st
 import os
-import json
+from dotenv import load_dotenv
+from utils import load_config, save_config
+import subprocess
+import re
+from pathlib import Path
 
-# Path to your OAuth 2.0 credentials
+load_dotenv()
+
+# OAuth Stuff for linking with Google API (optional)
 CLIENT_SECRETS_FILE = 'client_secret.json'
 SCOPES = ['https://www.googleapis.com/auth/youtube.readonly']
-CONFIG_FILE = "data/config.json"
 
 # Function to authenticate and get YouTube subscriptions
 def authenticate_youtube(show_link=True):
@@ -84,23 +89,6 @@ def get_subscriptions(creds):
 
     return subscriptions
 
-# Function to load config file
-def load_config():
-    if os.path.exists(CONFIG_FILE):
-        with open(CONFIG_FILE, 'r') as f:
-            return json.load(f)
-    empty_config = {
-        "youtube": {},
-        "tags": ["other"],
-        "settings": {}
-    }
-    return empty_config
-
-# Function to save config file
-def save_config(data):
-    with open(CONFIG_FILE, 'w') as f:
-        json.dump(data, f, indent=4)
-
 # Merge the fetched youtube subscriptions with the current config
 def refresh_data(config, creds):
     updated_config = {
@@ -122,28 +110,28 @@ def refresh_data(config, creds):
         if title in config["youtube"].keys():
             default_selected = config["youtube"][title]["subscribe"]
             default_tag = config["youtube"][title]["tag"]
+            default_download_all = config["youtube"][title].get("download_all", False)
+            default_days = config["youtube"][title].get("days", "8")
+            default_items = config["youtube"][title].get("items", "5")
+            default_include = config["youtube"][title].get("include_keywords")
+            default_exclude = config["youtube"][title].get("exclude_keywords")
         updated_config["youtube"][title] = {
             "subscribe": default_selected,
             "tag": default_tag,
             "link": channel_url,
-            "image": thumbnail_url  
+            "image": thumbnail_url,
+            "download_all": default_download_all,
+            "days": default_days,
+            "items": default_items,
+            "include_keywords": default_include,
+            "exclude_keywords": default_exclude
         }
-
-    # Add ToDownload playlist as option
-    subscribed = False
-    if "ToDownload" in config["youtube"].keys():
-        subscribed = config["youtube"]["ToDownload"].get("subscribe", False)
-    updated_config["youtube"]["ToDownload"] = {
-        "subscribe": subscribed,
-        "tag": "other",
-        "link": "https://www.youtube.com/playlist?list=PLXRlnUdzf9f1KbIDcNiTRVLgsQQSiuDnL",
-        "image": "https://yt3.ggpht.com/yti/ANjgQV-B-hb25HReQCi5kpbamwS0XHwOuaBV-SKG3TmBxrXIW5RQ=s108-c-k-c0x00ffffff-no-rj"
-    }
 
     save_config(updated_config)
     return updated_config
 
-def save_channel_config(config, title, url, tag, image, sub):
+def save_channel_config(config, title, url, tag, image, sub, download_all, days, items,
+                        include_keywords, exclude_keywords):
     if not title:
         st.error("Please provide a Channel Name")
         return
@@ -151,12 +139,17 @@ def save_channel_config(config, title, url, tag, image, sub):
         st.error("Please provide a valid youtube URL. Hint, navigate to the channel, click 'videos' and copy the URL in the address bar")
         return
     if not image:
-        image = "https://randomuser.me/api/portraits/men/52.jpg"
+        image = "https://placehold.co/400"
     config["youtube"][title] = {
         "subscribe": sub,
         "tag": tag,
         "link": url,
-        "image": image
+        "image": image,
+        "download_all": download_all,
+        "days": days,
+        "items": items,
+        "include_keywords": include_keywords,
+        "exclude_keywords": exclude_keywords
     }
     save_config(config)
 
@@ -168,7 +161,7 @@ def youtube_page():
     with cols[0]:
         save_btn = st.button("Save Changes")
     with cols[1]:
-        if st.button("Fetch YouTube Data"):
+        if st.button("Sync Youtube Subscriptions"):
             st.session_state.creds = authenticate_youtube()
             if st.session_state.creds:
                 config = refresh_data(config, st.session_state.creds)
@@ -181,26 +174,28 @@ def youtube_page():
     unchecked = [title for title in config["youtube"] if not config["youtube"][title]["subscribe"]]
 
     for section, subscriptions in [("Subscribed", checked), ("Not Subscribed", unchecked)]:
-        with st.expander(section):
-            for title in sorted(subscriptions, key=str.casefold):
-                entry = config["youtube"][title]
-                col1, col2, col3, col4 = st.columns([1, 3, 3, 2])
-
-                with col1:
-                    if entry.get("image"):
-                        st.image(entry["image"], width=80)
-                    else:
-                        st.write("No Image")
-
-                with col2:
+        st.subheader(section)
+        for title in sorted(subscriptions, key=str.casefold):
+            entry = config["youtube"][title]
+            col1, col2 = st.columns([0.2, 0.8])
+            with col1:
+                if entry.get("image"):
+                    st.image(entry["image"], width=80)
+                else:
+                    st.write("No Image")
+            with col2:
+                with st.expander(title):
                     data["youtube"][title] = {
-                        "subscribe": st.checkbox(title, value=entry["subscribe"], key=f"sub_{title}"),
+                        "subscribe": st.checkbox("Subscribed", value=entry["subscribe"], key=f"sub_{title}"),
                         "tag": entry["tag"],
                         "link": entry["link"],
-                        "image": entry.get("image")
+                        "image": entry.get("image"),
+                        "download_all": entry.get("download_all", False),
+                        "days": entry.get("days", "8"),
+                        "items": entry.get("items", "5"),
+                        "include_keywords": entry.get("include_keywords"),
+                        "exclude_keywords": entry.get("exclude_keywords")
                     }
-
-                with col3:
                     if entry["tag"] in list(config["tags"]):
                         idx = list(config["tags"]).index(entry["tag"])
                     else:
@@ -208,12 +203,35 @@ def youtube_page():
                     data["youtube"][title]["tag"] = st.selectbox(
                         "Category", options=config["tags"], index=idx, key=f"tag_{title}"
                     )
-                with col4:
-                    if st.button("Delete", key=title):
-                        config["youtube"].pop(title)
-                        save_config(config)
-                        st.success(f"Deleted Channel: {title}")
-                        st.rerun()
+                    default_days = int(config["youtube"][title].get("days", "8"))
+                    default_items = int(config["youtube"][title].get("items", "5"))
+                    default_download_all = config["youtube"][title].get("download_all", False)
+                    download_all = st.checkbox("Download All", value=default_download_all, key=f"download_{title}", help="Selecting this will download all videos in this playlist, use with caution!")
+                    cols = st.columns(2)
+                    if not download_all:
+                        with cols[0]:
+                            data["youtube"][title]["days"] = str(st.number_input("Get Videos Since X Days Ago", min_value=0, value=default_days, key=f"days_{title}"))
+                        with cols[1]:
+                            data["youtube"][title]["items"] = str(st.number_input("Get Most Recent X Videos", min_value=0, value=default_items, key=f"items_{title}"))
+                    data["youtube"][title]["download_all"] = download_all
+                   
+                    include_keywords = data["youtube"][title].get("include_keywords")
+                    exclude_keywords = data["youtube"][title].get("exclude_keywords")
+                    with cols[0]:
+                        data["youtube"][title]["include_keywords"] = st.text_input("Keywords to include (separated by comma, leave blank for none)", value=include_keywords, key=f"include_{title}")
+                    with cols[1]:
+                        data["youtube"][title]["exclude_keywords"] = st.text_input("Keywords to exclude (separated by comma, leave blank for none)", value=exclude_keywords, key=f"exclude_{title}")
+                    with cols[0]:
+                        if st.button("Delete", key=title):
+                            config["youtube"].pop(title)
+                            save_config(config)
+                            st.success(f"Deleted Channel: {title}")
+                            st.rerun()
+                    with cols[1]:
+                        if st.button("Save", key=f"save_{title}"):
+                            save_config(config)
+                            st.success(f"Saved settings for {title}")
+    
     if save_btn:
         save_config(data)
         st.success("Configurations saved!")
@@ -221,22 +239,79 @@ def youtube_page():
     
 def add_channel_page():
     st.title("Manually Add a Channel")
+    with st.expander("📺 Set Up a Custom YouTube Playlist for Downloads"):
+        st.markdown("""
+    To automatically download videos later, follow these steps to create and share a playlist:
+
+    ---
+
+    #### 1. **Create a Playlist in YouTube**
+    - Go to [YouTube](https://www.youtube.com).
+    - Click your profile picture → **"Your Channel"**.
+    - Click the **"Playlists"** tab, then **"New playlist"**.
+    - Give it a name like `"YT-DL Watchlist"`.
+
+    ---
+
+    #### 2. **Make It Public (or Unlisted)**
+    - After creating the playlist, open it.
+    - Click the **pencil/edit icon** near the title.
+    - Under **"Visibility"**, choose **Public** or **Unlisted**.
+    - **Public**: anyone can see it.
+    - **Unlisted**: only people with the link can access (recommended).
+
+    ---
+
+    #### 3. **Get the Playlist Link**
+    - While viewing the playlist, copy the URL from your browser.
+    - It will look like this:
+    ```
+    https://www.youtube.com/playlist?list=PLabc123xyz...
+    ```
+
+    ---
+
+    #### 4. **Add It to the App**
+    - Fill in the Channel name
+    - Paste the playlist link into the **Channel Link** field.
+    - Choose a tag (optional) and click **Subscribe**.
+    - **Important**: select Download All in order to allow any video outside of the default 8 days or most recent 5 videos
+
+    Once added, the app will automatically pull videos from this playlist during scheduled downloads.
+
+    """)
+
     config = load_config()
-    new_title = st.text_input("Channel Name")
-    new_link = st.text_input("Channel URL")
-    new_tag = st.selectbox("Category Tag", options=config["tags"])
-    image_link = st.text_input("Image Link")
+    new_title = st.text_input("Channel Name *", help="This is a custom field for your convenience. Name it whatever you want")
+    new_link = st.text_input("Channel URL *", help="Technically, this needs to be a playlist URL. I prefer to use a channel's 'videos' playlist to get all their content")
+    new_tag = st.selectbox("Category Tag", options=config["tags"], help="Use tags to categorize your media. See the 'Manage Tags' page for more info")
+    image_link = st.text_input("Image Link", help="On youtube, you can right click an image (your profile for example) and 'Open Image in New Tab' and copy the address")
+    download_all = st.checkbox("Download All", help="Selecting this will download all videos in this playlist, use with caution!")
+    if not download_all:
+        days = str(st.number_input("Get Videos Since X Days Ago (Set to 0 for infinity)", min_value=0, value=8, help="This option will cap the downloads to only look within the previous X days"))
+        items = str(st.number_input("Get Most Recent X Videos (Set to 0 for infinity)", min_value=0, value=5, help="This option will cap the downloads to only get the previous X videos"))
+    else:
+        days = "0"
+        items = "0"
+    include_keywords = st.text_input("Keywords to include (separated by comma, leave blank to ignore this setting)", help="Only download videos if they include these keywords")
+    exclude_keywords = st.text_input("Keywords to exclude (separated by comma, leave blank to ignore this setting)", help="Only download videos that do NOT include these keywords")
     sub = st.checkbox("Subscribe", value=True)
     if st.button("Add Channel"):
         if new_title and new_link:
-            save_channel_config(config, new_title, new_link, new_tag, image_link, sub)
-            st.rerun()
+            save_channel_config(config, new_title, new_link, new_tag, image_link, sub, download_all, days, items, include_keywords, exclude_keywords)
             st.success(f"Channel '{new_title}' added!")
+            st.rerun()
         else:
-            st.warning("Please fill in all fields to add a channel.")
+            st.warning("Please fill in all required * fields to add a channel.")
 
 def manage_tags_page():
     st.title("Add or Remove Tags")
+
+    with st.expander("Tags Folder Structure"):
+        st.markdown(""" Use tags to split the downloaded videos into sections. This example shows Cooking and other which I use as separate Plex Libraries""")
+        st.image("images/image.png")
+        
+        
     config = load_config()
 
     if "tags" not in config:
@@ -276,19 +351,28 @@ def manage_tags_page():
 
 
 def auth_setup_page():
-    st.title("Google OAuth Setup")
-    st.markdown("""
-    To use YouTube integration, follow these steps:
+    st.title("🔐 YouTube API Setup (First-Time Only)")
+    with st.expander("Detailed Instructions"):
+        # with open("youtube-api.md", "r") as f:
+        #     content = f.readlines()
 
-    1. Go to the [Google Cloud Console](https://console.cloud.google.com/)
-    2. Create a new project or use an existing one
-    3. Enable the YouTube Data API v3
-    4. Create OAuth client credentials (type: Desktop or Web App)
-    5. Download the `client_secret.json` file
-    6. Upload it below by dragging and dropping or selecting browse
+        # # Skip the first line
+        # content_without_first_line = "".join(content[1:])
 
-    Restart the app and complete authentication.
-    """)
+        # st.markdown(content_without_first_line, unsafe_allow_html=True)
+        render_markdown_with_images("youtube-api.md", skip_first_line=True)
+    # st.markdown("""
+    # To use YouTube integration, follow these steps:
+
+    # 1. Go to the [Google Cloud Console](https://console.cloud.google.com/)
+    # 2. Create a new project or use an existing one
+    # 3. Enable the YouTube Data API v3
+    # 4. Create OAuth client credentials (type: Desktop or Web App)
+    # 5. Download the `client_secret.json` file
+    # 6. Upload it below by dragging and dropping or selecting browse
+
+    # Restart the app and complete authentication.
+    # """)
     if st.button("Authenticate"):
         creds = authenticate_youtube()
         print(creds)
@@ -305,6 +389,7 @@ def settings_page():
     st.title("Settings")
     config = load_config()
     current_path = config.get("settings", {}).get("download_path", "")
+    env_path = os.environ.get("DOWNLOAD_PATH")
     
     # Track whether user is editing
     if "editing_download_path" not in st.session_state:
@@ -312,9 +397,22 @@ def settings_page():
 
     st.subheader("Download Location")
 
+    with st.expander("Note..."):
+        st.markdown(f"""
+        For security, the app only has access to folders inside of:
+                    
+        ```
+        {env_path}    
+        ```
+                    
+        To change this, edit the .env file and restart the app or re-run the setup.sh. See the README for more info.
+
+        If you want to update the download path WITHIN that, edit the Current Path below
+        """)
+    # st.markdown("---")
     if not st.session_state.editing_download_path and current_path:
         cols = st.columns([0.85, 0.15])
-        cols[0].markdown(f"**Current path:** `{current_path}`")
+        cols[0].markdown(f"**Current path:** `{current_path}`", help="This is where videos will be saved")
         if cols[1].button("Edit"):
             st.session_state.editing_download_path = True
     else:
@@ -330,29 +428,113 @@ def settings_page():
                 st.success("✅ Download path saved.")
                 st.rerun()
 
+    st.markdown("---")
+    st.subheader("🧹 Cleaning")
+
+    do_clean = st.checkbox("Remove Old Files", value=config["settings"].get("remove_old_files", True))
+    days = config["settings"].get("clean_threshold", 90)
+    if do_clean:
+        download_path = config["settings"].get("download_path")
+        st.warning(f"Warning, this will remove any .mp4 files in the directory {download_path}")
+        days = st.number_input("Number of Days Before Removal", min_value=1, value=days)
+    if st.button("Update Cleaning Settings"):
+        config["settings"]["remove_old_files"] = do_clean
+        config["settings"]["clean_threshold"] = days
+        save_config(config)
+        st.success("Succesfully updated the config")
+
+    st.markdown("---")
+    st.subheader("🎬 Max Duration")
+    st.markdown("A global maximum video length limit to prevent exploding content")
+
+    minutes = st.number_input("Maximum Minutes", min_value=1, value=60)
+    if st.button("Update Max Duration Settings"):
+        config["settings"]["max_duration"] = minutes * 60  # Minutes to seconds
+        save_config(config)
+        st.success("Successfully updated the config")
+
+def render_markdown_with_images(path: str, skip_first_line=False):
+    """
+    Render markdown file and replace image references with st.image().
+    
+    Parameters:
+        path (str): Path to the markdown file.
+        skip_first_line (bool): If True, skip the first line of the file.
+    """
+    image_pattern = re.compile(r'!\[(.*?)\]\((.*?)\)')
+    with open(path, "r") as f:
+        lines = f.readlines()
+
+    if skip_first_line:
+        lines = lines[1:]
+
+    for line in lines:
+        match = image_pattern.search(line)
+        if match:
+            alt_text, image_path = match.groups()
+            image_file = Path(image_path)
+            if image_file.exists():
+                st.image(str(image_file), caption=alt_text)
+            else:
+                st.warning(f"Image not found: {image_path}")
+        else:
+            st.markdown(line, unsafe_allow_html=True)
+
+def readme_page():
+    render_markdown_with_images("README.md")
+
+def logs_page():
+    st.title("📦 Docker Logs Viewer")
+
+    container_name = "youtubedl-docker-streamlit-app-1"  # or whatever your container is called
+    num_lines = st.slider("How many lines to show?", 10, 500, 100)
+
+    try:
+        result = subprocess.run(
+            ["docker", "logs", "--tail", str(num_lines), container_name],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+        )
+        st.code(result.stdout, language="bash")
+
+        if result.stderr:
+            st.error(result.stderr)
+
+    except Exception as e:
+        st.error(f"Error getting logs: {e}")
+        
 def streamlit_app():
     config = load_config()
     if not config.get("settings") or not config["settings"].get("download_path"):
+        # settings_page()
+        config["settings"] = {
+            "download_path": os.environ.get("DOWNLOAD_PATH", "/app/downloads")
+        }
+        save_config(config)
+        print(f"Set the download path to {config['settings']['download_path']}")
+    st.sidebar.title("Navigation")
+    if st.query_params.get("code"):
+        authenticate_youtube(show_link=False)
+    page = st.sidebar.radio("Go to", ["Subscriptions","Add Channel", "Manage Tags", "Auth Setup", "Settings", "Logs", "README"])
+
+    if "creds" not in st.session_state:
+        st.session_state.creds = None
+
+    if page == "Auth Setup":
+        auth_setup_page()
+    elif page == "Add Channel":
+        add_channel_page()
+    elif page == "Manage Tags":
+        manage_tags_page()
+    elif page == "Subscriptions":
+        youtube_page()
+    elif page == "Settings":
         settings_page()
-    else:
-        st.sidebar.title("Navigation")
-        if st.query_params.get("code"):
-            authenticate_youtube(show_link=False)
-        page = st.sidebar.radio("Go to", ["Subscriptions","Add Channel", "Manage Tags", "Auth Setup", "Settings"])
-
-        if "creds" not in st.session_state:
-            st.session_state.creds = None
-
-        if page == "Auth Setup":
-            auth_setup_page()
-        elif page == "Add Channel":
-            add_channel_page()
-        elif page == "Manage Tags":
-            manage_tags_page()
-        elif page == "Subscriptions":
-            youtube_page()
-        elif page == "Settings":
-            settings_page()
+    elif page == "Logs":
+        logs_page()
+    elif page == "README":
+        readme_page()
 
 if __name__ == '__main__':
     # Start the Streamlit app

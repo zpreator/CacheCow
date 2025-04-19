@@ -1,14 +1,14 @@
-version: '3.8'
-
 services:
   streamlit-app:
     build: .
     ports:
-      - "8501:8501"
+      - "${PORT:-8501}:${PORT:-8501}"
     volumes:
       - .:/app  # Mount the current directory to /app inside the container
-      - /home/glados/SharedMedia:/app/shared_media  # Mount the specific folder to /app/shared_media in the container
+      # - ${DOWNLOAD_PATH:-./downloads}:${DOWNLOAD_PATH:-./downloads}
+      - ${DOWNLOAD_PATH}:${DOWNLOAD_PATH}
+      - /var/run/docker.sock:/var/run/docker.sock
     environment:
       - PYTHONUNBUFFERED=1
+      - PORT=${PORT}
     restart: unless-stopped
-    command: ["streamlit", "run", "app.py", "--server.port=8501", "--server.enableCORS=false"]

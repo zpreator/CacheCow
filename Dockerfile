@@ -1,20 +1,24 @@
-# Use an official Python runtime as a parent image
 FROM python:3.9-slim
 
-# Set the working directory in the container
+# Set working directory
 WORKDIR /app
 
-# Copy the current directory contents into the container at /app
-COPY . /app
+# Install dependencies
+COPY requirements.txt .
+RUN apt-get update && apt-get install -y supervisor && \
+    apt-get install -y ffmpeg && \
+    apt-get install -y docker.io && \
+    pip install --no-cache-dir -r requirements.txt && \
+    apt-get clean
 
-# Install the dependencies
-RUN pip install --no-cache-dir -r requirements.txt
+# Copy app files
+COPY . .
 
-# Expose the port Streamlit runs on
+# Copy supervisor config
+COPY supervisord.conf /etc/supervisor/conf.d/supervisord.conf
+
+# Expose the default port (can be overridden by .env)
 EXPOSE 8501
 
-# Define environment variables
-ENV PYTHONUNBUFFERED=1
-
-# Run the app
-CMD ["streamlit", "run", "app.py", "--server.port=8501", "--server.enableCORS=false"]
+# Make supervisor the container entrypoint
+CMD ["supervisord", "-c", "/etc/supervisor/conf.d/supervisord.conf"]
