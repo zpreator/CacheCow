@@ -107,6 +107,11 @@ def refresh_data(config, creds):
         thumbnail_url = sub["snippet"]["thumbnails"]["default"]["url"]
         default_selected = False
         default_tag = "other"
+        default_download_all = False
+        default_days = "8"
+        default_items = "5"
+        default_include = None
+        default_exclude = None
         if title in config["youtube"].keys():
             default_selected = config["youtube"][title]["subscribe"]
             default_tag = config["youtube"][title]["tag"]
@@ -486,7 +491,7 @@ def readme_page():
 def logs_page():
     st.title("📦 Docker Logs Viewer")
 
-    container_name = "youtubedl-docker-streamlit-app-1"  # or whatever your container is called
+    container_name = "cachecow-streamlit-app-1"  # or whatever your container is called
     num_lines = st.slider("How many lines to show?", 10, 500, 100)
 
     try:
