@@ -33,8 +33,8 @@ If you don’t already have Docker installed, please follow the instructions in 
 
 Clone the repository to your local machine:
 
-```git clone https://github.com/zpreator/youtubedl-docker.git```
-```cd your-repo-name```
+```git clone https://github.com/zpreator/CacheCow.git```
+```cd CacheCow```
 
 ### 3. Set Up the Docker Environment
 
