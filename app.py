@@ -223,7 +223,7 @@ def youtube_page():
                 else:
                     st.write("No Image")
             with col2:
-                with st.expander(title):
+                with st.expander(f"{title}  --- {entry['tag']}"):
                     with st.form(title, clear_on_submit=False):
                         # Get existing values or set default ones
                         default_subscribed = entry["subscribe"]
