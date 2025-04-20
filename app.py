@@ -159,22 +159,56 @@ def save_channel_config(config, title, url, tag, image, sub, download_all, days,
     save_config(config)
 
 def youtube_page():
-    st.title("YouTube Subscriptions")
+    st.title("Subscriptions")
+    with st.expander("ℹ️ How Subscriptions Work", expanded=False):
+        st.markdown("""
+        This page lets you manage the channels you've **subscribed to within this app**.
+
+        🔧 **Each channel has individual settings** — you can customize download filters, keywords, or max video length per channel.
+
+        ❗ **Important:** These subscriptions are **separate from your actual YouTube account**.  
+        Adding or deleting channels here won’t affect your YouTube account.
+
+        🔁 If you click **"Sync YouTube Subscriptions"**, the app will re-fetch your real YouTube subscriptions and overwrite this list.  
+        That means any manual deletes you did here will be undone.
+
+        ✅ Subscribing to a channel in this app simply means:  
+        **"Download this channel’s videos using the settings I’ve chosen."**
+        """)
+    with st.expander("🧠 Why Limit Downloads?", expanded=False):
+        st.markdown("""
+        By default, this app **limits how many videos are downloaded per channel** — both in terms of:
+
+        - 🕒 **How recent** the videos are (e.g., only videos from the past 7 days)
+        - 🔢 **How many** videos to download (e.g., up to 5 videos)
+
+        These limits are especially useful when you're just starting out or syncing a new channel for the first time:
+
+        - ✅ Prevents accidentally downloading **entire playlists with hundreds or thousands of videos**
+        - 💾 Saves **disk space** and avoids overwhelming your system
+        - ⚡ Makes the initial setup **faster and safer**
+
+        ---
+        If you’re dealing with a **small playlist** (like To Download) that you do want to download completely, you can check the  
+        **"Download All"** option. This will ignore the recent video and count limits and grab everything.
+
+        *(Use this with care — especially on large playlists!)*  
+        """)
     config = load_config()
 
     cols = st.columns(2)
-    with cols[0]:
-        save_btn = st.button("Save Changes")
-    with cols[1]:
-        if st.button("Sync Youtube Subscriptions"):
-            st.session_state.creds = authenticate_youtube()
-            if st.session_state.creds:
-                config = refresh_data(config, st.session_state.creds)
-            else:
-                st.info("Google API connection required, see the Auth Setup page in the sidebar")
+    # with cols[0]:
+    #     save_btn = st.button("Save Changes")
+    # with cols[1]:
+    if st.button("Sync Youtube Subscriptions"):
+        st.session_state.creds = authenticate_youtube()
+        if st.session_state.creds:
+            config = refresh_data(config, st.session_state.creds)
+        else:
+            st.info("Google API connection required, see the Auth Setup page in the sidebar")
 
 
-    data = {"youtube": {}, "tags": config["tags"]}
+    # data = {"youtube": {}, "tags": config["tags"]}
     checked = [title for title in config["youtube"] if config["youtube"][title]["subscribe"]]
     unchecked = [title for title in config["youtube"] if not config["youtube"][title]["subscribe"]]
 
@@ -190,57 +224,85 @@ def youtube_page():
                     st.write("No Image")
             with col2:
                 with st.expander(title):
-                    data["youtube"][title] = {
-                        "subscribe": st.checkbox("Subscribed", value=entry["subscribe"], key=f"sub_{title}"),
-                        "tag": entry["tag"],
-                        "link": entry["link"],
-                        "image": entry.get("image"),
-                        "download_all": entry.get("download_all", False),
-                        "days": entry.get("days", "8"),
-                        "items": entry.get("items", "5"),
-                        "include_keywords": entry.get("include_keywords"),
-                        "exclude_keywords": entry.get("exclude_keywords")
-                    }
-                    if entry["tag"] in list(config["tags"]):
-                        idx = list(config["tags"]).index(entry["tag"])
-                    else:
-                        idx = 0
-                    data["youtube"][title]["tag"] = st.selectbox(
-                        "Category", options=config["tags"], index=idx, key=f"tag_{title}"
-                    )
-                    default_days = int(config["youtube"][title].get("days", "8"))
-                    default_items = int(config["youtube"][title].get("items", "5"))
-                    default_download_all = config["youtube"][title].get("download_all", False)
-                    download_all = st.checkbox("Download All", value=default_download_all, key=f"download_{title}", help="Selecting this will download all videos in this playlist, use with caution!")
-                    cols = st.columns(2)
-                    if not download_all:
+                    with st.form(title, clear_on_submit=False):
+                        # Get existing values or set default ones
+                        default_subscribed = entry["subscribe"]
+                        if entry["tag"] in list(config["tags"]):
+                            default_tag_idx = list(config["tags"]).index(entry["tag"])
+                        else:
+                            default_tag_idx = 0
+                        default_days = int(entry.get("days", "8"))
+                        default_items = int(entry.get("items", "5"))
+                        default_download_all = entry.get("download_all", False)
+                        include_keywords = config["youtube"][title].get("include_keywords")
+                        exclude_keywords = config["youtube"][title].get("exclude_keywords")
+
+                        # Provide UI to edit directly to the config. These changes are only applied on save of this section
+                        config["youtube"][title]["subscribe"] = st.checkbox(
+                            "Subscribed", 
+                            value=default_subscribed, 
+                            key=f"sub_{title}"
+                        )
+                        config["youtube"][title]["tag"] = st.selectbox(
+                            "Category", 
+                            options=config["tags"], 
+                            index=default_tag_idx, 
+                            key=f"tag_{title}",
+                            help="Use tags to categorize your media. See the 'Manage Tags' page for more info"
+                        )
+                        download_all = st.checkbox(
+                            "Download All", 
+                            value=default_download_all, 
+                            key=f"download_{title}", 
+                            help="❗Selecting this will download all videos in this playlist which could mean thousands. Use with caution❗"
+                        )
+                        cols = st.columns(2)
+                        if not download_all:
+                            with cols[0]:
+                                config["youtube"][title]["days"] = str(st.number_input(
+                                    "Get Videos Since X Days Ago", 
+                                    min_value=0, 
+                                    value=default_days, 
+                                    key=f"days_{title}",
+                                    help="This option will cap the downloads to only look within the previous X days"
+                                ))
+                            with cols[1]:
+                                config["youtube"][title]["items"] = str(st.number_input(
+                                    "Get Most Recent X Videos", 
+                                    min_value=0, 
+                                    value=default_items, 
+                                    key=f"items_{title}",
+                                    help="Only download videos that do NOT include these keywords"
+                                ))
+                        config["youtube"][title]["download_all"] = download_all
+                    
+                        
                         with cols[0]:
-                            data["youtube"][title]["days"] = str(st.number_input("Get Videos Since X Days Ago", min_value=0, value=default_days, key=f"days_{title}"))
+                            config["youtube"][title]["include_keywords"] = st.text_input(
+                                "Keywords to include (separated by comma, leave blank for none)", 
+                                value=include_keywords, 
+                                key=f"include_{title}",
+                                help="Only download videos if they include these keywords"
+                            )
                         with cols[1]:
-                            data["youtube"][title]["items"] = str(st.number_input("Get Most Recent X Videos", min_value=0, value=default_items, key=f"items_{title}"))
-                    data["youtube"][title]["download_all"] = download_all
-                   
-                    include_keywords = data["youtube"][title].get("include_keywords")
-                    exclude_keywords = data["youtube"][title].get("exclude_keywords")
-                    with cols[0]:
-                        data["youtube"][title]["include_keywords"] = st.text_input("Keywords to include (separated by comma, leave blank for none)", value=include_keywords, key=f"include_{title}")
-                    with cols[1]:
-                        data["youtube"][title]["exclude_keywords"] = st.text_input("Keywords to exclude (separated by comma, leave blank for none)", value=exclude_keywords, key=f"exclude_{title}")
-                    with cols[0]:
-                        if st.button("Delete", key=title):
-                            config["youtube"].pop(title)
-                            save_config(config)
-                            st.success(f"Deleted Channel: {title}")
-                            st.rerun()
-                    with cols[1]:
-                        if st.button("Save", key=f"save_{title}"):
-                            save_config(config)
-                            st.success(f"Saved settings for {title}")
+                            config["youtube"][title]["exclude_keywords"] = st.text_input(
+                                "Keywords to exclude (separated by comma, leave blank for none)", 
+                                value=exclude_keywords, 
+                                key=f"exclude_{title}",
+                                help="Only download videos that do NOT include these keywords"
+                            )
+                        with cols[0]:
+                            if st.form_submit_button("💾 Save"):
+                                save_config(config)
+                                st.success(f"Saved settings for {title}")
+                                st.rerun()
+                        with cols[1]:
+                            if st.form_submit_button("❗Delete"):
+                                config["youtube"].pop(title)
+                                save_config(config)
+                                st.success(f"Deleted Channel: {title}")
+                                st.rerun()
     
-    if save_btn:
-        save_config(data)
-        st.success("Configurations saved!")
-        st.rerun()
     
 def add_channel_page():
     st.title("Manually Add a Channel")
@@ -358,26 +420,8 @@ def manage_tags_page():
 def auth_setup_page():
     st.title("🔐 YouTube API Setup (First-Time Only)")
     with st.expander("Detailed Instructions"):
-        # with open("youtube-api.md", "r") as f:
-        #     content = f.readlines()
-
-        # # Skip the first line
-        # content_without_first_line = "".join(content[1:])
-
-        # st.markdown(content_without_first_line, unsafe_allow_html=True)
         render_markdown_with_images("youtube-api.md", skip_first_line=True)
-    # st.markdown("""
-    # To use YouTube integration, follow these steps:
 
-    # 1. Go to the [Google Cloud Console](https://console.cloud.google.com/)
-    # 2. Create a new project or use an existing one
-    # 3. Enable the YouTube Data API v3
-    # 4. Create OAuth client credentials (type: Desktop or Web App)
-    # 5. Download the `client_secret.json` file
-    # 6. Upload it below by dragging and dropping or selecting browse
-
-    # Restart the app and complete authentication.
-    # """)
     if st.button("Authenticate"):
         creds = authenticate_youtube()
         print(creds)
@@ -427,36 +471,36 @@ def settings_page():
             st.error("⚠️ This folder does not exist.")
         else:
             if st.button("Save Path"):
-                config.setdefault("settings", {})["download_path"] = new_path
+                config["settings"]["download_path"] = new_path
                 save_config(config)
                 st.session_state.editing_download_path = False
                 st.success("✅ Download path saved.")
-                st.rerun()
 
     st.markdown("---")
     st.subheader("🧹 Cleaning")
+    with st.form("cleaning_settings"):
+        do_clean = st.checkbox("Remove Old Files", value=config["settings"].get("remove_old_files", True))
+        days = config["settings"].get("clean_threshold", 90)
+        if do_clean:
+            download_path = config["settings"].get("download_path")
+            st.warning(f"This will remove .mp4 files in: {download_path}")
+            days = st.number_input("Days Before Removal", min_value=1, value=days, key="clean_days")
 
-    do_clean = st.checkbox("Remove Old Files", value=config["settings"].get("remove_old_files", True))
-    days = config["settings"].get("clean_threshold", 90)
-    if do_clean:
-        download_path = config["settings"].get("download_path")
-        st.warning(f"Warning, this will remove any .mp4 files in the directory {download_path}")
-        days = st.number_input("Number of Days Before Removal", min_value=1, value=days)
-    if st.button("Update Cleaning Settings"):
-        config["settings"]["remove_old_files"] = do_clean
-        config["settings"]["clean_threshold"] = days
-        save_config(config)
-        st.success("Succesfully updated the config")
+        if st.form_submit_button("Update Cleaning Settings"):
+            config["settings"]["remove_old_files"] = do_clean
+            config["settings"]["clean_threshold"] = days
+            save_config(config)
+            st.success("Cleaning settings updated.")
 
     st.markdown("---")
     st.subheader("🎬 Max Duration")
     st.markdown("A global maximum video length limit to prevent exploding content")
-
-    minutes = st.number_input("Maximum Minutes", min_value=1, value=60)
-    if st.button("Update Max Duration Settings"):
-        config["settings"]["max_duration"] = minutes * 60  # Minutes to seconds
-        save_config(config)
-        st.success("Successfully updated the config")
+    with st.form("duration_settings"):
+        minutes = st.number_input("Maximum Minutes", min_value=1, value=int(config["settings"].get("max_duration", 3600) / 60))
+        if st.form_submit_button("Update Max Duration Settings"):
+            config["settings"]["max_duration"] = minutes * 60
+            save_config(config)
+            st.success("Duration setting saved.")
 
 def render_markdown_with_images(path: str, skip_first_line=False):
     """
@@ -511,11 +555,14 @@ def logs_page():
         
 def streamlit_app():
     config = load_config()
-    if not config.get("settings") or not config["settings"].get("download_path"):
-        # settings_page()
-        config["settings"] = {
-            "download_path": os.environ.get("DOWNLOAD_PATH", "/app/downloads")
-        }
+    if not config.get("settings"):
+        config["settings"] = {}
+    if not config["settings"].get("download_path"):
+        download_path = os.environ.get("DOWNLOAD_PATH", "/app/downloads")
+        if "download_path" in config["settings"]:
+            config["settings"]["download_path"] = download_path
+        else:
+            config["settings"] = {"download_path": download_path}
         save_config(config)
         print(f"Set the download path to {config['settings']['download_path']}")
     st.sidebar.title("Navigation")
