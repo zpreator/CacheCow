@@ -109,8 +109,8 @@ def refresh_data(config, creds):
                 "link": channel_url,
                 "image": thumbnail_url,
                 "download_all": False,
-                "days": "8,
-                "items": "5,
+                "days": "8",
+                "items": "5",
                 "include_keywords": None,
                 "exclude_keywords": None
             }
