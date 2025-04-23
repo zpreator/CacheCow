@@ -94,49 +94,29 @@ def get_subscriptions(creds):
 
 # Merge the fetched youtube subscriptions with the current config
 def refresh_data(config, creds):
-    updated_config = {
-        "youtube": {},
-        "tags": config["tags"],
-        "settings": config["settings"]
-    }
-
     subscriptions = get_subscriptions(creds)
 
     # Keep existing settings for old subscriptions, add new ones as False
     for sub in subscriptions:
         title = sub["snippet"]["title"]
-        channel_id = sub["snippet"]["resourceId"]["channelId"]
-        channel_url = f"https://www.youtube.com/channel/{channel_id}/videos"
-        thumbnail_url = sub["snippet"]["thumbnails"]["default"]["url"]
-        default_selected = False
-        default_tag = "other"
-        default_download_all = False
-        default_days = "8"
-        default_items = "5"
-        default_include = None
-        default_exclude = None
-        if title in config["youtube"].keys():
-            default_selected = config["youtube"][title]["subscribe"]
-            default_tag = config["youtube"][title]["tag"]
-            default_download_all = config["youtube"][title].get("download_all", False)
-            default_days = config["youtube"][title].get("days", "8")
-            default_items = config["youtube"][title].get("items", "5")
-            default_include = config["youtube"][title].get("include_keywords")
-            default_exclude = config["youtube"][title].get("exclude_keywords")
-        updated_config["youtube"][title] = {
-            "subscribe": default_selected,
-            "tag": default_tag,
-            "link": channel_url,
-            "image": thumbnail_url,
-            "download_all": default_download_all,
-            "days": default_days,
-            "items": default_items,
-            "include_keywords": default_include,
-            "exclude_keywords": default_exclude
-        }
+        if title not in config["youtube"]:
+            channel_id = sub["snippet"]["resourceId"]["channelId"]
+            channel_url = f"https://www.youtube.com/channel/{channel_id}/videos"
+            thumbnail_url = sub["snippet"]["thumbnails"]["default"]["url"]
+            config["youtube"][title] = {
+                "subscribe": True,
+                "tag": config["tags"][0],  # Default to the first tag in config['tags']
+                "link": channel_url,
+                "image": thumbnail_url,
+                "download_all": False,
+                "days": "8,
+                "items": "5,
+                "include_keywords": None,
+                "exclude_keywords": None
+            }
 
-    save_config(updated_config)
-    return updated_config
+    save_config(config)
+    return config
 
 def save_channel_config(config, title, url, tag, image, sub, download_all, days, items,
                         include_keywords, exclude_keywords):
