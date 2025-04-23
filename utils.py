@@ -3,6 +3,8 @@ import json
 
 CONFIG_FILE = "data/config.json"
 ARCHIVE_FILE = "data/archive.txt"
+PROGRESS_FILE = "data/temp/progress.json"
+RUN_NOW_FILE = "data/run_now.trigger"
 
 # Function to load config file
 def load_config():

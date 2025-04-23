@@ -5,10 +5,13 @@ from googleapiclient.discovery import build
 import streamlit as st
 import os
 from dotenv import load_dotenv
-from utils import load_config, save_config
+from utils import load_config, save_config, PROGRESS_FILE, RUN_NOW_FILE
 import subprocess
 import re
 from pathlib import Path
+import psutil
+import json
+import time
 
 load_dotenv()
 
@@ -437,6 +440,37 @@ def auth_setup_page():
 def settings_page():
     st.title("Settings")
     config = load_config()
+
+    st.subheader("💾 Download Status")
+    # Check if process is running (from earlier discussions)
+    is_running = os.path.exists(PROGRESS_FILE)
+    help = ""
+    if is_running:
+        help = "The downloader is currently running..."
+    cols = st.columns([0.3, 0.3])
+    with cols[0]:
+        if st.button("Run Downloader Now", disabled=is_running, help=help):
+            with open(RUN_NOW_FILE, "w") as f:
+                f.write("manual run\n")
+            st.success("Downloader will run shortly!")
+            st.rerun()
+    with cols[1]:
+        if st.button("🔁"):
+            st.rerun()
+    if is_running:
+        if os.path.exists(PROGRESS_FILE):
+            with open(PROGRESS_FILE) as f:
+                data = json.load(f)
+            name = data.get("name", "")
+            current = data.get("index", 0)
+            total = data.get("total", 1)  # Avoid division by 0
+            progress = current / total
+            st.progress(progress, name)
+            st.text(f"Downloaded videos for {current} of {total} channels")
+
+        else:
+            st.info("Progress data not yet available")
+
     current_path = config.get("settings", {}).get("download_path", "")
     env_path = os.environ.get("DOWNLOAD_PATH")
     
@@ -465,7 +499,7 @@ def settings_page():
         if cols[1].button("Edit"):
             st.session_state.editing_download_path = True
     else:
-        new_path = st.text_input("Enter path to download folder:", value=current_path, placeholder="/home/user/Downloads")
+        new_path = st.text_input("Enter path to download folder:", value=current_path, placeholder=env_path)
         
         if new_path and not os.path.isdir(new_path):
             st.error("⚠️ This folder does not exist.")
@@ -552,7 +586,7 @@ def logs_page():
 
     except Exception as e:
         st.error(f"Error getting logs: {e}")
-        
+    
 def streamlit_app():
     config = load_config()
     if not config.get("settings"):
