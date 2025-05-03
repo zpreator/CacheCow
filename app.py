@@ -12,12 +12,33 @@ from pathlib import Path
 import psutil
 import json
 import time
+import hashlib
 
 load_dotenv()
 
 # OAuth Stuff for linking with Google API (optional)
 CLIENT_SECRETS_FILE = 'client_secret.json'
 SCOPES = ['https://www.googleapis.com/auth/youtube.readonly']
+
+# Function to verify login
+def login():
+    if "authenticated" not in st.session_state:
+        st.session_state.authenticated = False
+
+    if not st.session_state.authenticated:
+        st.title("Login")
+
+        username = st.text_input("Username")
+        password = st.text_input("Password", type="password")
+
+        if st.button("Login"):
+            hashed_input = hashlib.sha256(password.encode()).hexdigest()
+            if username == os.environ.get("STREAMLIT_USER") and hashed_input == os.environ.get("STREAMLIT_PASS"):
+                st.session_state.authenticated = True
+                st.rerun()
+            else:
+                st.error("Invalid username or password")
+        st.stop()
 
 # Function to authenticate and get YouTube subscriptions
 def authenticate_youtube(show_link=True):
@@ -568,6 +589,7 @@ def logs_page():
         st.error(f"Error getting logs: {e}")
     
 def streamlit_app():
+    login()
     config = load_config()
     if not config.get("settings"):
         config["settings"] = {}
