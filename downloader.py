@@ -106,9 +106,13 @@ def download_from_playlists(config):
                 
                 tag = config["youtube"][name]["tag"]
                 link = config["youtube"][name]["link"]
+                if 'tiktok' in link.lower():
+                    fmt = 'bestvideo+bestaudio/best'
+                else:
+                    fmt = 'bestvideo[ext=mp4][vcodec!*=av1][vcodec!*=av01][height<=1080]+bestaudio[ext=m4a]/bestvideo+bestaudio'
                 ydl_opts = {
                     # 'daterange': yt_dlp.DateRange(date_range),
-                    'format': 'bestvideo[ext=mp4][vcodec!*=av1][vcodec!*=av01][height<=1080]+bestaudio[ext=m4a]/bestvideo+bestaudio',
+                    'format': fmt,
                     'merge_output_format': 'mp4',
                     'playlist_items': playlist_items,
                     'download_archive': ARCHIVE_FILE,
