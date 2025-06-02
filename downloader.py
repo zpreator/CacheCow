@@ -3,8 +3,11 @@ import subprocess
 import sys
 import os
 import json
+import glob
 from utils import load_config, ARCHIVE_FILE, PROGRESS_FILE
 from datetime import datetime, timedelta
+from pathlib import Path
+
 subprocess.check_call(
     [sys.executable, '-m', 'pip', 'install', '--upgrade', 'yt_dlp'], 
     stdout=subprocess.DEVNULL,  # Suppresses output
@@ -26,12 +29,36 @@ class Logger:
     def error(self, msg):
         print(msg)
 
+def clean_metadata(file_path, creator_name, video_title):
+    temp_path = file_path.replace(".mp4", "_clean.mp4")
+    subprocess.run([
+        "ffmpeg", "-y", "-i", file_path,
+        "-metadata", f"title={video_title}",
+        "-metadata", f"artist={creator_name}",
+        "-c", "copy",
+        temp_path
+    ])
+    os.replace(temp_path, file_path)
+
 def my_hook(d):
     if d['status'] == 'skipped':
         print(f"Skipping: {d['filename']}")
     if d['status'] == 'finished':
         if ".mp4" in d['filename']:
             print("Downloaded:", d['filename'])
+        filepath = Path(d['filename'])
+        filename = filepath.stem  # No extension
+        # Parse creator name and video title from filename
+        try:
+            # Example: "creator_name - video title.mp4"
+            parts = filename.split(" - ", 1)
+            if len(parts) == 2:
+                creator_name, video_title = parts
+                clean_metadata(str(filepath), creator_name.strip(), video_title.strip())
+            else:
+                print(f"Unexpected filename format: {filename}")
+        except Exception as e:
+            print(f"Error cleaning metadata for {filepath}: {e}")
 
 def match_filter(info_dict, keywords, excludes, max_duration=None):
     title = info_dict.get("title", "").lower()
@@ -78,6 +105,24 @@ def update_progress(current_name, current_index, total):
     os.makedirs(os.path.dirname(PROGRESS_FILE), exist_ok=True)
     with open(PROGRESS_FILE, "w") as f:
         json.dump({"name": current_name, "index": current_index, "total": total}, f)
+
+def clean_fragments(download_dir):
+    frag_patterns = [
+        "*.part-Frag*.part",
+        "*.f*.mp4.part",
+        "*.webm.part",
+        "*.m4a.part"
+    ]
+    deleted = 0
+    for pattern in frag_patterns:
+        for f in glob.glob(os.path.join(download_dir, pattern)):
+            try:
+                os.remove(f)
+                deleted += 1
+            except Exception as e:
+                print(f"Couldn't delete {f}: {e}")
+    if deleted:
+        print(f"Cleaned up {deleted} leftover fragment files.")
 
 def download_from_playlists(config):
     max_duration = config["settings"].get("max_duration", None)
@@ -137,6 +182,7 @@ def download_from_playlists(config):
             except Exception as e:
                 print(f"Fatal error: {e}")
                 pass
+    clean_fragments(config["settings"]["download_path"])
 
 if __name__ == "__main__":
     # Load config
