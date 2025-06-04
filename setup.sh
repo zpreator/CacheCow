@@ -88,7 +88,7 @@ if [ -z "$STREAMLIT_USER" ]; then
   done
 
   # 🔒 Hash password using SHA-256
-  STREAMLIT_PASS_HASH=$(echo -n "$pass1" | openssl dgst -sha256 | awk '{print $2}')
+  STREAMLIT_PASS=$(echo -n "$pass1" | openssl dgst -sha256 | awk '{print $2}')
 else
   echo "👤 Current Streamlit username: $STREAMLIT_USER"
   read -p "🔁 Do you want to change your password? (y/N): " change_pass
@@ -105,7 +105,7 @@ else
         echo "❌ Passwords do not match or are empty. Try again."
       fi
     done
-    STREAMLIT_PASS_HASH=$(echo -n "$pass1" | openssl dgst -sha256 | awk '{print $2}')
+    STREAMLIT_PASS=$(echo -n "$pass1" | openssl dgst -sha256 | awk '{print $2}')
   fi
 fi
 
@@ -114,7 +114,7 @@ fi
 echo "DOWNLOAD_PATH=$DOWNLOAD_PATH" > .env
 echo "PORT=$PORT" >> .env
 echo "STREAMLIT_USER=$STREAMLIT_USER" >> .env
-echo "STREAMLIT_PASS=$STREAMLIT_PASS_HASH" >> .env
+echo "STREAMLIT_PASS=$STREAMLIT_PASS" >> .env
 
 echo
 echo "✅ Configuration written to .env:"
