@@ -40,6 +40,39 @@ def login():
                 st.error("Invalid username or password")
         st.stop()
 
+def backwards_compat(config):
+    if not config.get("settings"):
+        config["settings"] = {}
+    if not config["settings"].get("download_path"):
+        download_path = os.environ.get("DOWNLOAD_PATH", "/app/downloads")
+        if "download_path" in config["settings"]:
+            config["settings"]["download_path"] = download_path
+        else:
+            config["settings"] = {"download_path": download_path}
+        save_config(config)
+        print(f"Set the download path to {config['settings']['download_path']}")
+    
+    # Ensure all youtube channel configs have required keys with defaults
+    required_keys = {
+        "subscribe": True,
+        "tag": config["tags"][0] if config.get("tags") else "other",
+        "link": "",
+        "image": "https://placehold.co/400",
+        "use_global_settings": True,
+        "max_duration": "60",
+        "download_all": False,
+        "days": "8",
+        "items": "5",
+        "include_keywords": None,
+        "exclude_keywords": None
+    }
+    if "youtube" in config:
+        for title, entry in config["youtube"].items():
+            for key, default in required_keys.items():
+                if key not in entry:
+                    entry[key] = default
+        save_config(config)
+
 # Function to authenticate and get YouTube subscriptions
 def authenticate_youtube(show_link=True):
     creds = None
@@ -129,6 +162,8 @@ def refresh_data(config, creds):
                 "tag": config["tags"][0],  # Default to the first tag in config['tags']
                 "link": channel_url,
                 "image": thumbnail_url,
+                "use_global_settings": True,
+                "max_duration": "60",  # Default max duration in minutes
                 "download_all": False,
                 "days": "8",
                 "items": "5",
@@ -139,7 +174,7 @@ def refresh_data(config, creds):
     save_config(config)
     return config
 
-def save_channel_config(config, title, url, tag, image, sub, download_all, days, items,
+def save_channel_config(config, title, url, tag, image, use_global, max_duration, sub, download_all, days, items,
                         include_keywords, exclude_keywords):
     if not title:
         st.error("Please provide a Channel Name")
@@ -154,6 +189,8 @@ def save_channel_config(config, title, url, tag, image, sub, download_all, days,
         "tag": tag,
         "link": url,
         "image": image,
+        "use_global_settings": use_global,
+        "max_duration": max_duration,
         "download_all": download_all,
         "days": days,
         "items": items,
@@ -228,7 +265,20 @@ def youtube_page():
                     st.write("No Image")
             with col2:
                 with st.expander(f"{title}  --- {entry['tag']}"):
+                    use_global_settings = st.checkbox(
+                            "Use Global Settings", 
+                            value=entry.get("use_global_settings", True), 
+                            key=f"use_global_{title}",
+                            help="If you uncheck this, you can set custom settings for this channel"
+                        )
+                    download_all = st.checkbox(
+                        "Download All", 
+                        value=entry.get("download_all", False), 
+                        key=f"download_{title}", 
+                        help="❗Selecting this will download all videos in this playlist which could mean thousands. Use with caution❗"
+                    )
                     with st.form(title, clear_on_submit=False):
+                        
                         # Get existing values or set default ones
                         default_subscribed = entry["subscribe"]
                         if entry["tag"] in list(config["tags"]):
@@ -237,7 +287,7 @@ def youtube_page():
                             default_tag_idx = 0
                         default_days = int(entry.get("days", "8"))
                         default_items = int(entry.get("items", "5"))
-                        default_download_all = entry.get("download_all", False)
+                        # default_download_all = entry.get("download_all", False)
                         include_keywords = config["youtube"][title].get("include_keywords")
                         exclude_keywords = config["youtube"][title].get("exclude_keywords")
 
@@ -247,54 +297,73 @@ def youtube_page():
                             value=default_subscribed, 
                             key=f"sub_{title}"
                         )
-                        config["youtube"][title]["tag"] = st.selectbox(
-                            "Category", 
-                            options=config["tags"], 
-                            index=default_tag_idx, 
-                            key=f"tag_{title}",
-                            help="Use tags to categorize your media. See the 'Manage Tags' page for more info"
-                        )
-                        download_all = st.checkbox(
-                            "Download All", 
-                            value=default_download_all, 
-                            key=f"download_{title}", 
-                            help="❗Selecting this will download all videos in this playlist which could mean thousands. Use with caution❗"
-                        )
-                        cols = st.columns(2)
-                        if not download_all:
-                            with cols[0]:
-                                config["youtube"][title]["days"] = str(st.number_input(
-                                    "Get Videos Since X Days Ago", 
-                                    min_value=0, 
-                                    value=default_days, 
-                                    key=f"days_{title}",
-                                    help="This option will cap the downloads to only look within the previous X days"
-                                ))
-                            with cols[1]:
-                                config["youtube"][title]["items"] = str(st.number_input(
-                                    "Get Most Recent X Videos", 
-                                    min_value=0, 
-                                    value=default_items, 
-                                    key=f"items_{title}",
-                                    help="Only download videos that do NOT include these keywords"
-                                ))
-                        config["youtube"][title]["download_all"] = download_all
-                    
                         
-                        with cols[0]:
-                            config["youtube"][title]["include_keywords"] = st.text_input(
-                                "Keywords to include (separated by comma, leave blank for none)", 
-                                value=include_keywords, 
-                                key=f"include_{title}",
-                                help="Only download videos if they include these keywords"
-                            )
-                        with cols[1]:
-                            config["youtube"][title]["exclude_keywords"] = st.text_input(
-                                "Keywords to exclude (separated by comma, leave blank for none)", 
-                                value=exclude_keywords, 
-                                key=f"exclude_{title}",
-                                help="Only download videos that do NOT include these keywords"
-                            )
+                        
+                            
+                        
+                        if use_global_settings:
+                            config["youtube"][title]["tag"] = st.selectbox(
+                                    "Category", 
+                                    options=config["tags"], 
+                                    index=default_tag_idx, 
+                                    key=f"tag_{title}",
+                                    help="Use tags to categorize your media. See the 'Manage Tags' page for more info"
+                                )
+                            cols = st.columns(2)
+                        else:
+                            cols = st.columns(2)
+                            with cols[0]:
+                                config["youtube"][title]["tag"] = st.selectbox(
+                                    "Category", 
+                                    options=config["tags"], 
+                                    index=default_tag_idx, 
+                                    key=f"tag_{title}",
+                                    help="Use tags to categorize your media. See the 'Manage Tags' page for more info"
+                                )
+                            with cols[1]:
+                                config["youtube"][title]["max_duration"] = str(st.number_input(
+                                    "Max Duration (minutes)",
+                                    value=60,
+                                    key=f"duration_{title}",
+                                    help="Only download videos with a duration less than this value (in minutes)"
+                                ))
+                            
+                            
+                            if not download_all:
+                                with cols[0]:
+                                    config["youtube"][title]["days"] = str(st.number_input(
+                                        "Get Videos Since X Days Ago", 
+                                        min_value=0, 
+                                        value=default_days, 
+                                        key=f"days_{title}",
+                                        help="This option will cap the downloads to only look within the previous X days"
+                                    ))
+                                with cols[1]:
+                                    config["youtube"][title]["items"] = str(st.number_input(
+                                        "Get Most Recent X Videos", 
+                                        min_value=0, 
+                                        value=default_items, 
+                                        key=f"items_{title}",
+                                        help="This option will cap the downloads to only get the previous X videos"
+                                    ))
+                        
+                        
+                            with cols[0]:
+                                config["youtube"][title]["include_keywords"] = st.text_input(
+                                    "Keywords to include (separated by comma, leave blank for none)", 
+                                    value=include_keywords, 
+                                    key=f"include_{title}",
+                                    help="Only download videos if they include these keywords"
+                                )
+                            with cols[1]:
+                                config["youtube"][title]["exclude_keywords"] = st.text_input(
+                                    "Keywords to exclude (separated by comma, leave blank for none)", 
+                                    value=exclude_keywords, 
+                                    key=f"exclude_{title}",
+                                    help="Only download videos that do NOT include these keywords"
+                                )
+                        config["youtube"][title]["download_all"] = download_all
+                        config["youtube"][title]["use_global_settings"] = use_global_settings
                         with cols[0]:
                             if st.form_submit_button("💾 Save"):
                                 save_config(config)
@@ -358,18 +427,29 @@ def add_channel_page():
     new_tag = st.selectbox("Category Tag", options=config["tags"], help="Use tags to categorize your media. See the 'Manage Tags' page for more info")
     image_link = st.text_input("Image Link", help="On youtube, you can right click an image (your profile for example) and 'Open Image in New Tab' and copy the address")
     download_all = st.checkbox("Download All", help="Selecting this will download all videos in this playlist, use with caution!")
-    if not download_all:
-        days = str(st.number_input("Get Videos Since X Days Ago (Set to 0 for infinity)", min_value=0, value=8, help="This option will cap the downloads to only look within the previous X days"))
-        items = str(st.number_input("Get Most Recent X Videos (Set to 0 for infinity)", min_value=0, value=5, help="This option will cap the downloads to only get the previous X videos"))
-    else:
-        days = "0"
-        items = "0"
     include_keywords = st.text_input("Keywords to include (separated by comma, leave blank to ignore this setting)", help="Only download videos if they include these keywords")
     exclude_keywords = st.text_input("Keywords to exclude (separated by comma, leave blank to ignore this setting)", help="Only download videos that do NOT include these keywords")
+    use_global = st.checkbox("Use Global Settings", value=True, help="If you uncheck this, you can set custom settings for this channel")
+    if use_global:
+        max_duration = str(st.number_input(
+                                "Max Duration (minutes)",
+                                value=60,
+                                help="Only download videos with a duration less than this value (in minutes)"
+                            ))
+        if not download_all:
+            days = str(st.number_input("Get Videos Since X Days Ago (Set to 0 for infinity)", min_value=0, value=8, help="This option will cap the downloads to only look within the previous X days"))
+            items = str(st.number_input("Get Most Recent X Videos (Set to 0 for infinity)", min_value=0, value=5, help="This option will cap the downloads to only get the previous X videos"))
+        else:
+            days = "0"
+            items = "0"
+    else:
+        max_duration = None
+        days = None
+        items = None
     sub = st.checkbox("Subscribe", value=True)
     if st.button("Add Channel"):
         if new_title and new_link:
-            save_channel_config(config, new_title, new_link, new_tag, image_link, sub, download_all, days, items, include_keywords, exclude_keywords)
+            save_channel_config(config, new_title, new_link, new_tag, image_link, use_global, max_duration, sub, download_all, days, items, include_keywords, exclude_keywords)
             st.success(f"Channel '{new_title}' added!")
             st.rerun()
         else:
@@ -479,6 +559,20 @@ def settings_page():
     if "editing_download_path" not in st.session_state:
         st.session_state.editing_download_path = not bool(current_path)
 
+    # st.markdown("---")
+    st.subheader("Global Settings")
+    st.markdown("These settings will be used for all channels unless you override them in the channel settings")
+    with st.form("global_settings"):
+        max_duration = st.number_input("🎬 Max Duration (minutes)", min_value=1, value=int(config["settings"].get("max_duration", 60)), help="Don't download videos longer than this")
+        days = st.number_input("📅 Get Videos Since X Days Ago", min_value=0, value=int(config["settings"].get("days", 8)), help="This option will cap the downloads to only look within the previous X days")
+        items = st.number_input("🔢 Get Most Recent X Videos", min_value=0, value=int(config["settings"].get("items", 5)), help="This option will cap the downloads to only get the previous X videos")
+        if st.form_submit_button("Update Global Settings"):
+            config["settings"]["max_duration"] = str(max_duration)
+            config["settings"]["days"] = str(days)
+            config["settings"]["items"] = str(items)
+            save_config(config)
+            st.success("Duration setting saved.")
+
     st.subheader("Download Location")
 
     with st.expander("Note..."):
@@ -493,7 +587,8 @@ def settings_page():
 
         If you want to update the download path WITHIN that, edit the Current Path below
         """)
-    # st.markdown("---")
+    
+    
     if not st.session_state.editing_download_path and current_path:
         cols = st.columns([0.85, 0.15])
         cols[0].markdown(f"**Current path:** `{current_path}`", help="This is where videos will be saved")
@@ -511,7 +606,7 @@ def settings_page():
                 st.session_state.editing_download_path = False
                 st.success("✅ Download path saved.")
 
-    st.markdown("---")
+    # st.markdown("---")
     st.subheader("🧹 Cleaning")
     with st.form("cleaning_settings"):
         do_clean = st.checkbox("Remove Old Files", value=config["settings"].get("remove_old_files", True))
@@ -527,15 +622,8 @@ def settings_page():
             save_config(config)
             st.success("Cleaning settings updated.")
 
-    st.markdown("---")
-    st.subheader("🎬 Max Duration")
-    st.markdown("A global maximum video length limit to prevent exploding content")
-    with st.form("duration_settings"):
-        minutes = st.number_input("Maximum Minutes", min_value=1, value=int(config["settings"].get("max_duration", 3600) / 60))
-        if st.form_submit_button("Update Max Duration Settings"):
-            config["settings"]["max_duration"] = minutes * 60
-            save_config(config)
-            st.success("Duration setting saved.")
+    # st.markdown("---")
+    
 
 def render_markdown_with_images(path: str, skip_first_line=False):
     """
@@ -591,16 +679,7 @@ def logs_page():
 def streamlit_app():
     login()
     config = load_config()
-    if not config.get("settings"):
-        config["settings"] = {}
-    if not config["settings"].get("download_path"):
-        download_path = os.environ.get("DOWNLOAD_PATH", "/app/downloads")
-        if "download_path" in config["settings"]:
-            config["settings"]["download_path"] = download_path
-        else:
-            config["settings"] = {"download_path": download_path}
-        save_config(config)
-        print(f"Set the download path to {config['settings']['download_path']}")
+    backwards_compat(config)
     st.sidebar.title("Navigation")
     if st.query_params.get("code"):
         authenticate_youtube(show_link=False)

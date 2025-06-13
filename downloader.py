@@ -60,12 +60,13 @@ def my_hook(d):
         except Exception as e:
             print(f"Error cleaning metadata for {filepath}: {e}")
 
-def match_filter(info_dict, keywords, excludes, max_duration=None):
+def match_filter(info_dict, keywords, excludes, max_duration_min=None):
     title = info_dict.get("title", "").lower()
     description = info_dict.get("description", "").lower()
     availability = info_dict.get("availability", "").lower()
     duration = info_dict.get("duration", 0)  # duration in seconds
 
+    max_duration_seconds = int(max_duration_min) * 60
     # Convert comma-separated strings to lowercase lists
     keyword_list = [k.strip().lower() for k in keywords.split(",") if k.strip()] if keywords else []
     exclude_list = [e.strip().lower() for e in excludes.split(",") if e.strip()] if excludes else []
@@ -83,9 +84,9 @@ def match_filter(info_dict, keywords, excludes, max_duration=None):
         return reason
 
     # Check max duration
-    if max_duration is not None and duration > max_duration:
+    if max_duration_seconds is not None and duration > max_duration_seconds:
         mins = int(duration / 60)
-        reason = f"Skipping '{title}' (too long: {mins} minutes > max {int(max_duration / 60)} minutes)"
+        reason = f"Skipping '{title}' (too long: {mins} minutes > max {int(max_duration_min)} minutes)"
         print(reason)
         return reason
     
@@ -125,7 +126,9 @@ def clean_fragments(download_dir):
         print(f"Cleaned up {deleted} leftover fragment files.")
 
 def download_from_playlists(config):
-    max_duration = config["settings"].get("max_duration", None)
+    global_max_duration = config["settings"].get("max_duration", "60")
+    global_days = config["settings"].get("days", "8")
+    global_items = config["settings"].get("items", "5")
     num_channels = len(config["youtube"].keys())
     for i, name in enumerate(config["youtube"].keys()):
         if config["youtube"][name]["subscribe"]:
@@ -133,21 +136,30 @@ def download_from_playlists(config):
                 # print(f"Checking {name}")
                 update_progress(name, i, num_channels)
 
-                # If days or items are 0 it will download all, or the download_all bool will override
-                days = int(config["youtube"][name].get("days", "8"))
-                items = config["youtube"][name].get("items", "5")
+                use_global = config["youtube"][name].get("use_global_settings", True)
+                if use_global:
+                    max_duration = global_max_duration
+                    days = global_days
+                    items = global_items
+                    keywords = ""
+                    excludes = ""
+                else:
+                    max_duration = config["youtube"][name].get("max_duration", global_max_duration)
+
+                    # If days or items are 0 it will download all, or the download_all bool will override
+                    days = int(config["youtube"][name].get("days", "8"))
+                    items = config["youtube"][name].get("items", "5")
+                    keywords = config["youtube"][name].get("include_keywords")
+                    excludes = config["youtube"][name].get("exclude_keywords")
+                    
                 download_all = config["youtube"][name].get("download_all", False)
                 if download_all:
-                    days = 0
                     items = "0"
                 if items == "0":
                     playlist_items = None
                 else:
                     playlist_items = f"1-{items}"
                 
-                # Setup
-                keywords = config["youtube"][name].get("include_keywords")
-                excludes = config["youtube"][name].get("exclude_keywords")
                 
                 tag = config["youtube"][name]["tag"]
                 link = config["youtube"][name]["link"]
