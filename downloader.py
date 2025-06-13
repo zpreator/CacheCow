@@ -133,6 +133,8 @@ def download_from_playlists(config):
     global_max_duration = config["settings"].get("max_duration", "60")
     global_days = config["settings"].get("days", "8")
     global_items = config["settings"].get("items", "5")
+    random_interval_lower = config["settings"].get("random_interval_lower", 15)
+    random_interval_upper = config["settings"].get("random_interval_upper", 45)
     cookies = None
     if os.path.exists("data/cookies.txt"):
         print("Using cookies.txt for authentication")
@@ -140,74 +142,76 @@ def download_from_playlists(config):
     num_channels = len(config["youtube"].keys())
     for i, name in enumerate(config["youtube"].keys()):
         if config["youtube"][name]["subscribe"]:
-            try:
-                # print(f"Checking {name}")
-                update_progress(name, i, num_channels)
+            for attempt in range(3):
+                try:
+                    # print(f"Checking {name}")
+                    update_progress(name, i, num_channels)
 
-                use_global = config["youtube"][name].get("use_global_settings", True)
-                if use_global:
-                    max_duration = global_max_duration
-                    days = global_days
-                    items = global_items
-                    keywords = ""
-                    excludes = ""
-                else:
-                    max_duration = config["youtube"][name].get("max_duration", global_max_duration)
+                    use_global = config["youtube"][name].get("use_global_settings", True)
+                    if use_global:
+                        max_duration = global_max_duration
+                        days = global_days
+                        items = global_items
+                        keywords = ""
+                        excludes = ""
+                    else:
+                        max_duration = config["youtube"][name].get("max_duration", global_max_duration)
 
-                    # If days or items are 0 it will download all, or the download_all bool will override
-                    days = int(config["youtube"][name].get("days", "8"))
-                    items = config["youtube"][name].get("items", "5")
-                    keywords = config["youtube"][name].get("include_keywords")
-                    excludes = config["youtube"][name].get("exclude_keywords")
+                        # If days or items are 0 it will download all, or the download_all bool will override
+                        days = int(config["youtube"][name].get("days", "8"))
+                        items = config["youtube"][name].get("items", "5")
+                        keywords = config["youtube"][name].get("include_keywords")
+                        excludes = config["youtube"][name].get("exclude_keywords")
 
-                download_all = config["youtube"][name].get("download_all", False)
-                if download_all:
-                    items = "0"
-                if items == "0":
-                    playlist_items = None
-                else:
-                    playlist_items = f"1-{items}"
-                
-                
-                tag = config["youtube"][name]["tag"]
-                link = config["youtube"][name]["link"]
-                if 'tiktok' in link.lower():
-                    fmt = 'bestvideo+bestaudio/best'
-                else:
-                    fmt = 'bestvideo[ext=mp4][vcodec!*=av1][vcodec!*=av01][height<=1080]+bestaudio[ext=m4a]/bestvideo+bestaudio'
-                ydl_opts = {
-                    # 'daterange': yt_dlp.DateRange(date_range),
-                    'format': fmt,
-                    'cookies': cookies,
-                    'merge_output_format': 'mp4',
-                    'playlist_items': playlist_items,
-                    'download_archive': ARCHIVE_FILE,
-                    'sleep_interval': 15,
-                    'max_sleep_interval': 45,
-                    'outtmpl': f'{config["settings"]["download_path"]}/{tag}/%(uploader)s/%(playlist)s/%(uploader)s - %(title)s.%(ext)s',
-                    'match_filter': lambda x: match_filter(x, keywords, excludes, max_duration),
-                    'progress_hooks': [my_hook],
-                    'writethumbnail': True,
-                    'prefer_ffmpeg': True,
-                    'embedthumbnail': True,  # Alternative for EmbedThumbnail
-                    'break_on_existing': True,
-                    'lazy_playlist': True,
-                    'postprocessors': [
-                        {'key': 'FFmpegMetadata'},
-                        {'key': 'EmbedThumbnail'},
-                    ],
-                    'logger': Logger(),
-                    'quiet': True,
-                    'noprogress': True
-                }
-                with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                    ydl.download([link.strip()])
-            except Exception as e:
-                # print(f"Fatal error: {e}")
-                if "not a bot" in str(e):
-                    print("Youtube thinks we are a bot, sleeping for 5 minutes before retrying...")
-                    time.sleep(300)
-            sleep_time = random.randint(15, 45)
+                    download_all = config["youtube"][name].get("download_all", False)
+                    if download_all:
+                        items = "0"
+                    if items == "0":
+                        playlist_items = None
+                    else:
+                        playlist_items = f"1-{items}"
+                    
+                    
+                    tag = config["youtube"][name]["tag"]
+                    link = config["youtube"][name]["link"]
+                    if 'tiktok' in link.lower():
+                        fmt = 'bestvideo+bestaudio/best'
+                    else:
+                        fmt = 'bestvideo[ext=mp4][vcodec!*=av1][vcodec!*=av01][height<=1080]+bestaudio[ext=m4a]/bestvideo+bestaudio'
+                    ydl_opts = {
+                        # 'daterange': yt_dlp.DateRange(date_range),
+                        'format': fmt,
+                        'cookies': cookies,
+                        'merge_output_format': 'mp4',
+                        'playlist_items': playlist_items,
+                        'download_archive': ARCHIVE_FILE,
+                        'sleep_interval': random_interval_lower,
+                        'max_sleep_interval': random_interval_upper,
+                        'outtmpl': f'{config["settings"]["download_path"]}/{tag}/%(uploader)s/%(playlist)s/%(uploader)s - %(title)s.%(ext)s',
+                        'match_filter': lambda x: match_filter(x, keywords, excludes, max_duration),
+                        'progress_hooks': [my_hook],
+                        'writethumbnail': True,
+                        'prefer_ffmpeg': True,
+                        'embedthumbnail': True,  # Alternative for EmbedThumbnail
+                        'break_on_existing': True,
+                        'lazy_playlist': True,
+                        'postprocessors': [
+                            {'key': 'FFmpegMetadata'},
+                            {'key': 'EmbedThumbnail'},
+                        ],
+                        'logger': Logger(),
+                        'quiet': True,
+                        'noprogress': True
+                    }
+                    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                        ydl.download([link.strip()])
+                    break
+                except Exception as e:
+                    # print(f"Fatal error: {e}")
+                    if "not a bot" in str(e):
+                        print("Youtube thinks we are a bot, sleeping for 5 minutes before retrying...")
+                        time.sleep(300)
+            sleep_time = random.randint(random_interval_lower, random_interval_upper)
             print(f"Sleeping for {sleep_time} seconds before next download...")
             time.sleep(sleep_time)
     clean_fragments(config["settings"]["download_path"])
