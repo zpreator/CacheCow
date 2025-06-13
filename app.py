@@ -683,6 +683,8 @@ def logs_page():
         st.error(f"Error getting logs: {e}")
     
 def streamlit_app():
+    if os.path.exists(PROGRESS_FILE):
+        os.remove(PROGRESS_FILE)
     login()
     config = load_config()
     backwards_compat(config)

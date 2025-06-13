@@ -6,7 +6,7 @@ from utils import RUN_NOW_FILE, load_config
 
 config = load_config()
 
-minutes_between_runs = config['settings'].get("minutes_between_runs", 60)
+minutes_between_runs = int(config['settings'].get("minutes_between_runs", 60))
 SECONDS_TO_CHECK = 5
 SECONDS_BETWEEN_RUNS = 60 * minutes_between_runs
 
