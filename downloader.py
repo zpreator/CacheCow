@@ -7,6 +7,8 @@ import glob
 from utils import load_config, ARCHIVE_FILE, PROGRESS_FILE
 from datetime import datetime, timedelta
 from pathlib import Path
+import time
+import random
 
 subprocess.check_call(
     [sys.executable, '-m', 'pip', 'install', '--upgrade', 'yt_dlp'], 
@@ -196,8 +198,11 @@ def download_from_playlists(config):
                 with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                     ydl.download([link.strip()])
             except Exception as e:
-                print(f"Fatal error: {e}")
+                # print(f"Fatal error: {e}")
                 pass
+            sleep_time = random.randint(15, 45)
+            print(f"Sleeping for {sleep_time} seconds before next download...")
+            time.sleep(sleep_time)
     clean_fragments(config["settings"]["download_path"])
 
 if __name__ == "__main__":
