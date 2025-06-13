@@ -211,7 +211,7 @@ def download_from_playlists(config):
                     if "not a bot" in str(e):
                         print("Youtube thinks we are a bot, sleeping for 5 minutes before retrying...")
                         time.sleep(300)
-            sleep_time = random.randint(random_interval_lower, random_interval_upper)
+            sleep_time = random.randint(int(random_interval_lower), int(random_interval_upper))
             print(f"Sleeping for {sleep_time} seconds before next download...")
             time.sleep(sleep_time)
     clean_fragments(config["settings"]["download_path"])
