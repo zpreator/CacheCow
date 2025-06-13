@@ -16,18 +16,20 @@ subprocess.check_call(
 
 class Logger:
     def debug(self, msg):
-        if msg.startswith('[download]'):
+        if msg.startswith('[download]') and "has already been recorded in the archive" not in msg and "--break-on-existing" not in msg:
             print(msg)
 
     def info(self, msg):
-        if msg.startswith('[download]'):
+        if msg.startswith('[download]') and "has already been recorded in the archive" not in msg and "--break-on-existing" not in msg:
             print(msg)
 
     def warning(self, msg):
-        print(msg)
+        if "--break-on-existing" not in msg:
+            print(msg)
 
     def error(self, msg):
-        print(msg)
+        if "--break-on-existing" not in msg:
+            print(msg)
 
 def clean_metadata(file_path, creator_name, video_title):
     temp_path = file_path.replace(".mp4", "_clean.mp4")
@@ -151,7 +153,7 @@ def download_from_playlists(config):
                     items = config["youtube"][name].get("items", "5")
                     keywords = config["youtube"][name].get("include_keywords")
                     excludes = config["youtube"][name].get("exclude_keywords")
-                    
+
                 download_all = config["youtube"][name].get("download_all", False)
                 if download_all:
                     items = "0"
@@ -173,6 +175,8 @@ def download_from_playlists(config):
                     'merge_output_format': 'mp4',
                     'playlist_items': playlist_items,
                     'download_archive': ARCHIVE_FILE,
+                    'sleep_interval': 15,
+                    'max_sleep_interval': 45,
                     'outtmpl': f'{config["settings"]["download_path"]}/{tag}/%(uploader)s/%(playlist)s/%(uploader)s - %(title)s.%(ext)s',
                     'match_filter': lambda x: match_filter(x, keywords, excludes, max_duration),
                     'progress_hooks': [my_hook],
@@ -186,7 +190,7 @@ def download_from_playlists(config):
                         {'key': 'EmbedThumbnail'},
                     ],
                     'logger': Logger(),
-                    # 'quiet': True,
+                    'quiet': True,
                     'noprogress': True
                 }
                 with yt_dlp.YoutubeDL(ydl_opts) as ydl:
