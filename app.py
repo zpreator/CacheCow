@@ -563,13 +563,19 @@ def settings_page():
     st.subheader("Global Settings")
     st.markdown("These settings will be used for all channels unless you override them in the channel settings")
     with st.form("global_settings"):
+        minutes_between_runs = st.number_input("⏱️ Minutes Between Runs", min_value=1, value=int(config["settings"].get("minutes_between_runs", 60)), help="How often to run the downloader script")
+        random_interval_lower = st.number_input("⏳ Random Interval Lower Bound (seconds)", min_value=0, value=int(config["settings"].get("random_interval_lower", 15)), help="The lower bound for the random interval between runs")
+        random_interval_upper = st.number_input("⏳ Random Interval Upper Bound (seconds)", min_value=0, value=int(config["settings"].get("random_interval_upper", 45)), help="The upper bound for the random interval between runs")
         max_duration = st.number_input("🎬 Max Duration (minutes)", min_value=1, value=int(config["settings"].get("max_duration", 60)), help="Don't download videos longer than this")
         days = st.number_input("📅 Get Videos Since X Days Ago", min_value=0, value=int(config["settings"].get("days", 8)), help="This option will cap the downloads to only look within the previous X days")
         items = st.number_input("🔢 Get Most Recent X Videos", min_value=0, value=int(config["settings"].get("items", 5)), help="This option will cap the downloads to only get the previous X videos")
         if st.form_submit_button("Update Global Settings"):
+            config["settings"]["minutes_between_runs"] = str(minutes_between_runs)
             config["settings"]["max_duration"] = str(max_duration)
             config["settings"]["days"] = str(days)
             config["settings"]["items"] = str(items)
+            config["settings"]["random_interval_lower"] = str(random_interval_lower)
+            config["settings"]["random_interval_upper"] = str(random_interval_upper)
             save_config(config)
             st.success("Duration setting saved.")
 

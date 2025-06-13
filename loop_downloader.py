@@ -2,15 +2,18 @@ import time
 import subprocess
 import os
 
-from utils import RUN_NOW_FILE
+from utils import RUN_NOW_FILE, load_config
 
+config = load_config()
+
+minutes_between_runs = config['settings'].get("minutes_between_runs", 60)
 SECONDS_TO_CHECK = 5
-SECONDS_BETWEEN_RUNS = 60 * 15
+SECONDS_BETWEEN_RUNS = 60 * minutes_between_runs
 
 def run_downloader():
     print("⏳ Running downloader script...")
     subprocess.run(["python", "downloader.py"])
-    print("✅ Finished. Sleeping 15 minutes.")
+    print(f"✅ Finished. Sleeping {minutes_between_runs} minutes.")
 
 count = 0
 max_count = SECONDS_BETWEEN_RUNS / SECONDS_TO_CHECK

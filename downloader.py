@@ -133,6 +133,10 @@ def download_from_playlists(config):
     global_max_duration = config["settings"].get("max_duration", "60")
     global_days = config["settings"].get("days", "8")
     global_items = config["settings"].get("items", "5")
+    cookies = None
+    if os.path.exists("data/cookies.txt"):
+        print("Using cookies.txt for authentication")
+        cookies = "data/cookies.txt"
     num_channels = len(config["youtube"].keys())
     for i, name in enumerate(config["youtube"].keys()):
         if config["youtube"][name]["subscribe"]:
@@ -174,6 +178,7 @@ def download_from_playlists(config):
                 ydl_opts = {
                     # 'daterange': yt_dlp.DateRange(date_range),
                     'format': fmt,
+                    'cookies': cookies,
                     'merge_output_format': 'mp4',
                     'playlist_items': playlist_items,
                     'download_archive': ARCHIVE_FILE,
@@ -199,7 +204,9 @@ def download_from_playlists(config):
                     ydl.download([link.strip()])
             except Exception as e:
                 # print(f"Fatal error: {e}")
-                pass
+                if "not a bot" in str(e):
+                    print("Youtube thinks we are a bot, sleeping for 5 minutes before retrying...")
+                    time.sleep(300)
             sleep_time = random.randint(15, 45)
             print(f"Sleeping for {sleep_time} seconds before next download...")
             time.sleep(sleep_time)
