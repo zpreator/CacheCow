@@ -5,7 +5,7 @@ from googleapiclient.discovery import build
 import streamlit as st
 import os
 from dotenv import load_dotenv
-from utils import load_config, save_config, PROGRESS_FILE, RUN_NOW_FILE
+from utils import load_config, save_config, PROGRESS_FILE, RUN_NOW_FILE, STOP_FILE
 import subprocess
 import re
 from pathlib import Path
@@ -28,16 +28,17 @@ def login():
     if not st.session_state.authenticated:
         st.title("Login")
 
-        username = st.text_input("Username")
-        password = st.text_input("Password", type="password")
-
-        if st.button("Login"):
-            hashed_input = hashlib.sha256(password.encode()).hexdigest()
-            if username == os.environ.get("STREAMLIT_USER") and hashed_input == os.environ.get("STREAMLIT_PASS"):
-                st.session_state.authenticated = True
-                st.rerun()
-            else:
-                st.error("Invalid username or password")
+        with st.form("login_form"):
+            username = st.text_input("Username")
+            password = st.text_input("Password", type="password")
+            submitted = st.form_submit_button("Login")
+            if submitted:
+                hashed_input = hashlib.sha256(password.encode()).hexdigest()
+                if username == os.environ.get("STREAMLIT_USER") and hashed_input == os.environ.get("STREAMLIT_PASS"):
+                    st.session_state.authenticated = True
+                    st.rerun()
+                else:
+                    st.error("Invalid username or password")
         st.stop()
 
 def backwards_compat(config):
@@ -524,20 +525,34 @@ def settings_page():
 
     st.subheader("💾 Download Status")
     # Check if process is running (from earlier discussions)
+    disabled = os.path.exists(STOP_FILE)
     is_running = os.path.exists(PROGRESS_FILE)
-    help = ""
-    if is_running:
-        help = "The downloader is currently running..."
-    cols = st.columns([0.3, 0.3])
-    with cols[0]:
-        if st.button("Run Downloader Now", disabled=is_running, help=help):
-            with open(RUN_NOW_FILE, "w") as f:
-                f.write("manual run\n")
-            st.success("Downloader will run shortly!")
+    if disabled:
+        st.warning("The downloader is currently stopped. Click the button below to start it again.")
+        if st.button("Start Downloader"):
+            os.remove(STOP_FILE)
+            st.success("Downloader started. It will run shortly.")
             st.rerun()
-    with cols[1]:
-        if st.button("🔁"):
-            st.rerun()
+    else:
+        
+        help = ""
+        if is_running:
+            help = "The downloader is currently running..."
+        cols = st.columns([0.3, 0.3])
+        with cols[0]:
+            if st.button("Run Downloader Now", disabled=is_running, help=help):
+                with open(RUN_NOW_FILE, "w") as f:
+                    f.write("manual run\n")
+                st.success("Downloader will run shortly!")
+                st.rerun()
+            if st.button("Stop Downloader", help="Stop the downloader from running"):
+                with open(STOP_FILE, "w") as f:
+                    f.write("stop\n")
+                st.success("Downloader stopped. You can start it again later.")
+                st.rerun()
+        with cols[1]:
+            if st.button("🔁"):
+                st.rerun()
     if is_running:
         if os.path.exists(PROGRESS_FILE):
             with open(PROGRESS_FILE) as f:

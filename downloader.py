@@ -50,6 +50,11 @@ def my_hook(d):
     if d['status'] == 'finished':
         if ".mp4" in d['filename']:
             print("Downloaded:", d['filename'])
+
+def tik_tok_hook(d):
+    if d['status'] == 'finished':
+        if ".mp4" in d['filename']:
+            print("Downloaded:", d['filename'])
         filepath = Path(d['filename'])
         filename = filepath.stem  # No extension
         # Parse creator name and video title from filename
@@ -58,7 +63,7 @@ def my_hook(d):
             parts = filename.split(" - ", 1)
             if len(parts) == 2:
                 creator_name, video_title = parts
-                clean_metadata(str(filepath), creator_name.strip(), video_title.strip())
+                clean_metadata(str(filepath), creator_name.strip(), filename.strip())
             else:
                 print(f"Unexpected filename format: {filename}")
         except Exception as e:
@@ -133,8 +138,8 @@ def download_from_playlists(config):
     global_max_duration = config["settings"].get("max_duration", "60")
     global_days = config["settings"].get("days", "8")
     global_items = config["settings"].get("items", "5")
-    random_interval_lower = config["settings"].get("random_interval_lower", 15)
-    random_interval_upper = config["settings"].get("random_interval_upper", 45)
+    random_interval_lower = int(config["settings"].get("random_interval_lower", 15))
+    random_interval_upper = int(config["settings"].get("random_interval_upper", 45))
     cookies = None
     if os.path.exists("data/cookies.txt"):
         print("Using cookies.txt for authentication")
@@ -176,8 +181,17 @@ def download_from_playlists(config):
                     link = config["youtube"][name]["link"]
                     if 'tiktok' in link.lower():
                         fmt = 'bestvideo+bestaudio/best'
+                        postprocessors = [
+                            {'key': 'EmbedThumbnail'},
+                        ]
+                        hook_func = tik_tok_hook
                     else:
                         fmt = 'bestvideo[ext=mp4][vcodec!*=av1][vcodec!*=av01][height<=1080]+bestaudio[ext=m4a]/bestvideo+bestaudio'
+                        postprocessors = [
+                            {'key': 'FFmpegMetadata'},
+                            {'key': 'EmbedThumbnail'},
+                        ]
+                        hook_func = my_hook
                     ydl_opts = {
                         # 'daterange': yt_dlp.DateRange(date_range),
                         'format': fmt,
@@ -189,16 +203,14 @@ def download_from_playlists(config):
                         'max_sleep_interval': random_interval_upper,
                         'outtmpl': f'{config["settings"]["download_path"]}/{tag}/%(uploader)s/%(playlist)s/%(uploader)s - %(title)s.%(ext)s',
                         'match_filter': lambda x: match_filter(x, keywords, excludes, max_duration),
-                        'progress_hooks': [my_hook],
+                        'progress_hooks': [hook_func],
                         'writethumbnail': True,
                         'prefer_ffmpeg': True,
                         'embedthumbnail': True,  # Alternative for EmbedThumbnail
                         'break_on_existing': True,
+                        'ignoreerrors': True,
                         'lazy_playlist': True,
-                        'postprocessors': [
-                            {'key': 'FFmpegMetadata'},
-                            {'key': 'EmbedThumbnail'},
-                        ],
+                        'postprocessors': postprocessors,
                         'logger': Logger(),
                         'quiet': True,
                         'noprogress': True
@@ -207,7 +219,8 @@ def download_from_playlists(config):
                         ydl.download([link.strip()])
                     break
                 except Exception as e:
-                    # print(f"Fatal error: {e}")
+                    if "--break-on-existing" not in str(e):
+                        print(f"Error {name}, {e}")
                     if "not a bot" in str(e):
                         print("Youtube thinks we are a bot, sleeping for 5 minutes before retrying...")
                         time.sleep(300)

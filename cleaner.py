@@ -15,8 +15,8 @@ def delete_old_files(directory, days):
     for root, dirs, files in os.walk(directory):
         for file in files:
             print(file)
-            file_ext = os.path.splitext(file)[1]
-            if file_ext.lower() == ".mp4":
+            file_ext = os.path.splitext(file)[1].lower()
+            if file_ext in [".mp4", ".part"]:
                 file_path = os.path.join(root, file)
                 print(f"Found file: {file_path}")
                 # Get the last modification time of the file

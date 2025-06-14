@@ -2,7 +2,7 @@ import time
 import subprocess
 import os
 
-from utils import RUN_NOW_FILE, load_config
+from utils import RUN_NOW_FILE, load_config, STOP_FILE
 
 config = load_config()
 
@@ -18,6 +18,12 @@ def run_downloader():
 count = 0
 max_count = SECONDS_BETWEEN_RUNS / SECONDS_TO_CHECK
 while True:
+    disabled = os.path.exists(STOP_FILE)
+    if disabled:
+        # print("⏸️  Loop is paused. Waiting for STOP file to be removed...")
+        time.sleep(SECONDS_TO_CHECK)
+        continue  # Skip the rest of the loop if paused
+
     # Check if the trigger file exists (manual run)
     if os.path.exists(RUN_NOW_FILE):
         os.remove(RUN_NOW_FILE)  # Clean up trigger file
