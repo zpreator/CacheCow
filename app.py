@@ -266,18 +266,28 @@ def youtube_page():
                     st.write("No Image")
             with col2:
                 with st.expander(f"{title}  --- {entry['tag']}"):
-                    use_global_settings = st.checkbox(
-                            "Use Global Settings", 
-                            value=entry.get("use_global_settings", True), 
-                            key=f"use_global_{title}",
-                            help="If you uncheck this, you can set custom settings for this channel"
+                    cols = st.columns(3)
+                    with cols[0]:
+                        use_global_settings = st.checkbox(
+                                "Use Global Settings", 
+                                value=entry.get("use_global_settings", True), 
+                                key=f"use_global_{title}",
+                                help="If you uncheck this, you can set custom settings for this channel"
+                            )
+                    with cols[1]:
+                        download_all = st.checkbox(
+                            "Download All", 
+                            value=entry.get("download_all", False), 
+                            key=f"download_{title}", 
+                            help="❗Selecting this will download all videos in this playlist which could mean thousands. Use with caution❗"
                         )
-                    download_all = st.checkbox(
-                        "Download All", 
-                        value=entry.get("download_all", False), 
-                        key=f"download_{title}", 
-                        help="❗Selecting this will download all videos in this playlist which could mean thousands. Use with caution❗"
-                    )
+                    with cols[2]:
+                        if st.button("Download This Channel Now", key=f"download_now_{title}"):
+                            # Save the current config to a temporary file
+                            with open(RUN_NOW_FILE, "w") as f:
+                                f.write(f"{title}\n")
+                            st.success(f"Downloading {title} now!")
+                            st.rerun()
                     with st.form(title, clear_on_submit=False):
                         
                         # Get existing values or set default ones
@@ -527,6 +537,8 @@ def settings_page():
     # Check if process is running (from earlier discussions)
     disabled = os.path.exists(STOP_FILE)
     is_running = os.path.exists(PROGRESS_FILE)
+    st.text("The downloader is currently " + ("running" if is_running else "not running"))
+    st.text(f"{PROGRESS_FILE} exists: {is_running}")
     if disabled:
         st.warning("The downloader is currently stopped. Click the button below to start it again.")
         if st.button("Start Downloader"):
@@ -542,7 +554,7 @@ def settings_page():
         with cols[0]:
             if st.button("Run Downloader Now", disabled=is_running, help=help):
                 with open(RUN_NOW_FILE, "w") as f:
-                    f.write("manual run\n")
+                    f.write("all\n")
                 st.success("Downloader will run shortly!")
                 st.rerun()
             if st.button("Stop Downloader", help="Stop the downloader from running"):
@@ -698,8 +710,6 @@ def logs_page():
         st.error(f"Error getting logs: {e}")
     
 def streamlit_app():
-    if os.path.exists(PROGRESS_FILE):
-        os.remove(PROGRESS_FILE)
     login()
     config = load_config()
     backwards_compat(config)

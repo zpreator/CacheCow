@@ -3,6 +3,7 @@ services:
     build: .
     ports:
       - "${PORT:-8501}:${PORT:-8501}"
+    network_mode: host
     volumes:
       - .:/app  # Mount the current directory to /app inside the container
       # - ${DOWNLOAD_PATH:-./downloads}:${DOWNLOAD_PATH:-./downloads}

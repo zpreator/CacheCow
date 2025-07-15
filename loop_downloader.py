@@ -26,8 +26,8 @@ while True:
 
     # Check if the trigger file exists (manual run)
     if os.path.exists(RUN_NOW_FILE):
-        os.remove(RUN_NOW_FILE)  # Clean up trigger file
         run_downloader()
+        os.remove(RUN_NOW_FILE) # Clean up trigger file
         count = 0  # Reset count after manual run
         time.sleep(SECONDS_TO_CHECK)  # Small sleep to prevent immediate loop re-entry
         continue  # Go back to the start of the loop
