@@ -193,10 +193,11 @@ def download_playlist(name, config):
                 ]
                 hook_func = tik_tok_hook
             else:
-                fmt = 'bestvideo[ext=mp4][vcodec!*=av1][vcodec!*=av01][height<=1080]+bestaudio[ext=m4a]/bestvideo+bestaudio'
+                # Simplified format for better iOS Plex compatibility - avoid complex muxing
+                fmt = 'best[ext=mp4][height<=1080][fps<=30]/bestvideo[ext=mp4][vcodec!*=av1][vcodec!*=av01][height<=1080][fps<=30]+bestaudio[ext=m4a]/best[ext=mp4][height<=1080]'
+                # Remove thumbnail embedding to reduce stream complexity for iOS
                 postprocessors = [
                     {'key': 'FFmpegMetadata'},
-                    {'key': 'EmbedThumbnail'},
                 ]
                 hook_func = my_hook
             ydl_opts = {
