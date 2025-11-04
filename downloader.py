@@ -193,10 +193,14 @@ def download_playlist(name, config):
                 ]
                 hook_func = tik_tok_hook
             else:
-                # Simplified format for better iOS Plex compatibility - avoid complex muxing
-                fmt = 'best[ext=mp4][height<=1080][fps<=30]/bestvideo[ext=mp4][vcodec!*=av1][vcodec!*=av01][height<=1080][fps<=30]+bestaudio[ext=m4a]/best[ext=mp4][height<=1080]'
-                # Remove thumbnail embedding to reduce stream complexity for iOS
+                # Get best quality available, then post-process to ensure 30fps for iOS compatibility
+                fmt = 'bestvideo[height=1080]+bestaudio/bestvideo[height>=720]+bestaudio/bestvideo+bestaudio/best'
+                # Cap frame rate at 30fps using FFmpeg post-processor for consistent iOS playback
                 postprocessors = [
+                    {
+                        'key': 'FFmpegVideoConvertor',
+                        'preferedformat': 'mp4',
+                    },
                     {'key': 'FFmpegMetadata'},
                 ]
                 hook_func = my_hook
@@ -218,6 +222,9 @@ def download_playlist(name, config):
                 'ignoreerrors': True,
                 'lazy_playlist': True,
                 'postprocessors': postprocessors,
+                'postprocessor_args': {
+                    'ffmpeg': ['-r', '30']  # Cap frame rate at 30fps
+                },
                 'logger': Logger(),
                 'quiet': True,
                 'noprogress': True
