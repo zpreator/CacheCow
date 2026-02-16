@@ -1,0 +1,16 @@
+<div id="tag-list">
+    {% for tag in tags %}
+    <div class="tag-item">
+        <span>{{ tag.name }}{% if tag.channels %} ({{ tag.channels|length }} channels){% endif %}</span>
+        {% if tag.name != "other" %}
+        <button class="outline secondary"
+                hx-delete="/tags/{{ tag.id }}"
+                hx-target="#tag-list"
+                hx-swap="outerHTML"
+                hx-confirm="Delete tag '{{ tag.name }}'? Channels will be moved to 'other'.">
+            Delete
+        </button>
+        {% endif %}
+    </div>
+    {% endfor %}
+</div>

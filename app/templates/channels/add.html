@@ -1,0 +1,324 @@
+{% extends "base.html" %}
+
+{% block content %}
+<h2>Add Channel</h2>
+
+<!-- Search -->
+<div style="margin-bottom: 2rem;">
+    <h3>Youtube Search</h3>
+    <fieldset role="group">
+        <input type="text" id="search-input" placeholder="Search YouTube for a channel..."
+               hx-get="/channels/search"
+               hx-trigger="keyup changed delay:500ms"
+               hx-target="#search-results"
+               hx-swap="innerHTML"
+               hx-params="none"
+               hx-vals='js:{"q": document.getElementById("search-input").value}'
+               name="q">
+        <button type="button"
+                hx-get="/channels/search"
+                hx-target="#search-results"
+                hx-swap="innerHTML"
+                hx-vals='js:{"q": document.getElementById("search-input").value}'>
+            Search
+        </button>
+    </fieldset>
+    <div id="search-results"></div>
+</div>
+
+<hr>
+
+<!-- Manual Add -->
+<h3>Add by URL</h3>
+
+{% if error %}
+<p class="error">{{ error }}</p>
+{% endif %}
+
+<form method="post" action="/channels">
+    <label>
+        Channel/Playlist URL <span aria-label="required">*</span>
+        <input type="url" name="link" id="url-input" required
+               placeholder="Paste a YouTube, TikTok, or other URL..."
+               oninput="debounceLookup(this.value)">
+    </label>
+
+    <div id="lookup-status" style="margin-bottom: 1rem;"></div>
+
+    <div id="channel-preview" style="display: none; margin-bottom: 1rem;" class="channel-card">
+        <div class="image-edit-wrapper" style="position:relative;display:inline-block;width:48px;height:48px;min-width:48px;max-width:48px;flex-shrink:0;overflow:visible;cursor:pointer" onclick="toggleImagePopover(this)">
+            <div id="preview-placeholder" class="placeholder-img" style="width:48px;height:48px;border-radius:50%">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" style="width:24px;height:24px"><path d="M12 12c2.7 0 4.8-2.1 4.8-4.8S14.7 2.4 12 2.4 7.2 4.5 7.2 7.2 9.3 12 12 12zm0 2.4c-3.2 0-9.6 1.6-9.6 4.8v2.4h19.2v-2.4c0-3.2-6.4-4.8-9.6-4.8z"/></svg>
+            </div>
+            <img id="preview-image" src="" alt="" style="display:none;width:48px;height:48px;border-radius:50%;object-fit:cover">
+            <div class="image-edit-overlay" style="position:absolute;bottom:-2px;right:-2px;width:20px;height:20px;background:var(--pico-primary);border-radius:50%;display:flex;align-items:center;justify-content:center;z-index:2;padding:0">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" style="width:12px;height:12px;fill:var(--pico-primary-inverse)"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a1 1 0 000-1.41l-2.34-2.34a1 1 0 00-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>
+            </div>
+            <div class="image-edit-popover" style="display:none;position:absolute;top:56px;left:0;background:var(--pico-card-background-color,#1a1a2e);border:1px solid var(--pico-muted-border-color);border-radius:8px;padding:0.75rem;z-index:20;min-width:250px;box-shadow:0 4px 12px rgba(0,0,0,0.3)" onclick="event.stopPropagation()">
+                <label style="font-size:0.85rem">Paste image URL</label>
+                <input type="url" placeholder="https://..." onkeydown="if(event.key==='Enter'){event.preventDefault();applyAddImageUrl(this)}">
+                <div style="display:flex;gap:0.5rem;align-items:center">
+                    <button type="button" class="outline" style="margin:0;padding:0.3rem 0.6rem;font-size:0.8rem" onclick="applyAddImageUrl(this.closest('.image-edit-popover').querySelector('input[type=url]'))">Apply</button>
+                </div>
+                <div style="text-align:center;font-size:0.8rem;color:var(--pico-muted-color);margin:0.5rem 0">or</div>
+                <div style="display:flex;gap:0.5rem;align-items:center">
+                    <button type="button" class="outline" style="margin:0;padding:0.3rem 0.6rem;font-size:0.8rem" onclick="this.closest('.image-edit-popover').querySelector('input[type=file]').click()">Upload Image</button>
+                    <input type="file" accept="image/*" style="display:none" onchange="uploadAddImage(this)">
+                </div>
+            </div>
+        </div>
+        <div class="channel-info">
+            <h4 id="preview-name"></h4>
+        </div>
+    </div>
+
+    <label>
+        Channel Name <span aria-label="required">*</span>
+        <input type="text" name="name" id="name-input" required placeholder="Auto-filled from URL">
+    </label>
+
+    <div class="tag-select-wrapper">
+        <label>Category Tag</label>
+        <select name="tag_id" onchange="handleTagSelect(this)">
+            {% for tag in tags %}
+            <option value="{{ tag.id }}">{{ tag.name }}</option>
+            {% endfor %}
+            <option value="__new__">+ New...</option>
+        </select>
+        <div class="tag-inline-create" style="display:none;gap:0.5rem;align-items:center">
+            <input type="text" placeholder="New tag name" style="flex:1;margin:0;padding:0.4rem 0.6rem;font-size:0.85rem" onkeydown="if(event.key==='Enter'){event.preventDefault();addNewTag(this)}">
+            <button type="button" class="outline" style="margin:0;padding:0.4rem 0.75rem;font-size:0.85rem;white-space:nowrap" onclick="addNewTag(this.previousElementSibling)">Add</button>
+            <button type="button" class="outline secondary" style="margin:0;padding:0.4rem 0.75rem;font-size:0.85rem;white-space:nowrap" onclick="cancelNewTag(this)">Cancel</button>
+        </div>
+    </div>
+
+    <input type="hidden" name="image" id="image-input">
+
+    <div class="checkbox-row">
+        <label>
+            <input type="checkbox" name="subscribe" role="switch" checked>
+            Subscribe
+        </label>
+        <label>
+            <input type="checkbox" name="use_global_settings" role="switch" checked
+                   onchange="document.getElementById('custom-settings').style.display = this.checked ? 'none' : 'grid'">
+            Use Global Settings
+        </label>
+        <label>
+            <input type="checkbox" name="download_all" role="switch">
+            Download All
+        </label>
+    </div>
+
+    <div id="custom-settings" class="form-grid" style="display: none; margin-top: 1rem;">
+        <label>
+            Max Duration (minutes)
+            <input type="number" name="max_duration" value="60" min="1">
+        </label>
+        <label>
+            Days to Look Back
+            <input type="number" name="days" value="8" min="0">
+        </label>
+        <label>
+            Max Videos
+            <input type="number" name="items" value="5" min="0">
+        </label>
+        <div></div>
+        <div class="full-width">
+            <label>Include Keywords</label>
+            <input type="hidden" name="include_keywords" value="">
+            <div class="keyword-tags" onclick="this.querySelector('input[type=text]').focus()">
+                <input type="text" placeholder="Type & press Enter" onkeydown="handleKeywordInput(event, this)">
+            </div>
+        </div>
+        <div class="full-width">
+            <label>Exclude Keywords</label>
+            <input type="hidden" name="exclude_keywords" value="">
+            <div class="keyword-tags" onclick="this.querySelector('input[type=text]').focus()">
+                <input type="text" placeholder="Type & press Enter" onkeydown="handleKeywordInput(event, this)">
+            </div>
+        </div>
+    </div>
+
+    <button type="submit" style="margin-top: 1rem;">Add Channel</button>
+</form>
+
+<script>
+function handleTagSelect(select) {
+    if (select.value !== '__new__') return;
+    const wrapper = select.closest('.tag-select-wrapper');
+    select.style.display = 'none';
+    const creator = wrapper.querySelector('.tag-inline-create');
+    creator.style.display = 'flex';
+    creator.querySelector('input').focus();
+    select.dataset.prevValue = select.options[0]?.value || '';
+}
+async function addNewTag(input) {
+    const name = input.value.trim();
+    if (!name) return;
+    const wrapper = input.closest('.tag-select-wrapper');
+    const select = wrapper.querySelector('select');
+    const formData = new FormData();
+    formData.append('name', name);
+    const resp = await fetch('/tags/json', { method: 'POST', body: formData });
+    const data = await resp.json();
+    if (data.id) {
+        const newOpt = document.createElement('option');
+        newOpt.value = data.id;
+        newOpt.textContent = data.name;
+        const newOption = select.querySelector('option[value="__new__"]');
+        select.insertBefore(newOpt, newOption);
+        select.value = data.id;
+    }
+    input.value = '';
+    input.closest('.tag-inline-create').style.display = 'none';
+    select.style.display = '';
+}
+function cancelNewTag(btn) {
+    const wrapper = btn.closest('.tag-select-wrapper');
+    const select = wrapper.querySelector('select');
+    const creator = wrapper.querySelector('.tag-inline-create');
+    creator.style.display = 'none';
+    creator.querySelector('input').value = '';
+    select.style.display = '';
+    if (select.dataset.prevValue) select.value = select.dataset.prevValue;
+}
+
+function handleKeywordInput(e, input) {
+    if (e.key === 'Enter' || e.key === ',') {
+        e.preventDefault();
+        const val = input.value.replace(/,/g, '').trim();
+        if (!val) return;
+        const chip = document.createElement('span');
+        chip.className = 'keyword-chip';
+        chip.innerHTML = val + '<button type="button" onclick="removeKeyword(this)">&times;</button>';
+        input.parentElement.insertBefore(chip, input);
+        input.value = '';
+        syncKeywords(input.closest('.keyword-tags'));
+    } else if (e.key === 'Backspace' && !input.value) {
+        const chips = input.parentElement.querySelectorAll('.keyword-chip');
+        if (chips.length) {
+            chips[chips.length - 1].remove();
+            syncKeywords(input.closest('.keyword-tags'));
+        }
+    }
+}
+function removeKeyword(btn) {
+    const container = btn.closest('.keyword-tags');
+    btn.parentElement.remove();
+    syncKeywords(container);
+}
+function syncKeywords(container) {
+    const chips = container.querySelectorAll('.keyword-chip');
+    const values = Array.from(chips).map(c => c.firstChild.textContent.trim());
+    container.previousElementSibling.value = values.join(', ');
+}
+
+function toggleImagePopover(wrapper) {
+    const popover = wrapper.querySelector('.image-edit-popover');
+    const isOpen = popover.style.display === 'block';
+    closeAllPopovers();
+    if (!isOpen) popover.style.display = 'block';
+}
+function closeAllPopovers() {
+    document.querySelectorAll('.image-edit-popover').forEach(function(p) { p.style.display = 'none'; });
+}
+function applyAddImageUrl(input) {
+    const url = input.value.trim();
+    if (!url) return;
+    document.getElementById('image-input').value = url;
+    const img = document.getElementById('preview-image');
+    img.src = url;
+    img.style.display = 'block';
+    img.style.width = '48px';
+    img.style.height = '48px';
+    img.style.borderRadius = '50%';
+    img.style.objectFit = 'cover';
+    document.getElementById('preview-placeholder').style.display = 'none';
+    input.value = '';
+    closeAllPopovers();
+}
+async function uploadAddImage(fileInput) {
+    const file = fileInput.files[0];
+    if (!file) return;
+    const formData = new FormData();
+    formData.append('file', file);
+    const resp = await fetch('/channels/upload-image', { method: 'POST', body: formData });
+    const data = await resp.json();
+    if (data.url) {
+        document.getElementById('image-input').value = data.url;
+        const img = document.getElementById('preview-image');
+        img.src = data.url;
+        img.style.display = 'block';
+        img.style.width = '48px';
+        img.style.height = '48px';
+        img.style.borderRadius = '50%';
+        img.style.objectFit = 'cover';
+        document.getElementById('preview-placeholder').style.display = 'none';
+        closeAllPopovers();
+    }
+    fileInput.value = '';
+}
+document.addEventListener('click', function(e) {
+    if (!e.target.closest('.image-edit-wrapper')) closeAllPopovers();
+});
+
+let lookupTimer = null;
+
+function debounceLookup(url) {
+    clearTimeout(lookupTimer);
+    if (!url || url.length < 10) return;
+    document.getElementById("lookup-status").innerHTML = '<small aria-busy="true">Looking up channel info...</small>';
+    lookupTimer = setTimeout(() => lookupUrl(url), 800);
+}
+
+function showPreview(name, image) {
+    document.getElementById("preview-name").textContent = name;
+    document.getElementById("channel-preview").style.display = "flex";
+    const img = document.getElementById("preview-image");
+    if (image) {
+        img.src = image;
+        img.style.display = "block";
+        img.style.width = "48px";
+        img.style.height = "48px";
+        img.style.borderRadius = "50%";
+        img.style.objectFit = "cover";
+        document.getElementById("preview-placeholder").style.display = "none";
+    } else {
+        img.style.display = "none";
+        document.getElementById("preview-placeholder").style.display = "flex";
+    }
+}
+
+async function lookupUrl(url) {
+    try {
+        const resp = await fetch("/channels/lookup?url=" + encodeURIComponent(url));
+        const data = await resp.json();
+        document.getElementById("lookup-status").innerHTML = "";
+
+        if (data.name) {
+            document.getElementById("name-input").value = data.name;
+            document.getElementById("image-input").value = data.image || "";
+            showPreview(data.name, data.image);
+        } else {
+            document.getElementById("lookup-status").innerHTML = '<small>Could not auto-detect channel info. Fill in manually.</small>';
+        }
+    } catch (e) {
+        document.getElementById("lookup-status").innerHTML = '<small>Lookup failed. Fill in manually.</small>';
+    }
+}
+
+function fillFromResult(name, url, image) {
+    document.getElementById("url-input").value = url;
+    document.getElementById("name-input").value = name;
+    document.getElementById("image-input").value = image;
+    document.getElementById("search-results").innerHTML = "";
+    document.getElementById("search-input").value = "";
+
+    showPreview(name, image);
+
+    // Scroll to the form
+    document.getElementById("url-input").scrollIntoView({ behavior: "smooth" });
+}
+</script>
+{% endblock %}

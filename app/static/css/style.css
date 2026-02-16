@@ -1,0 +1,372 @@
+/* Layout */
+.layout {
+    display: flex;
+    min-height: 100vh;
+}
+
+.sidebar {
+    width: 240px;
+    min-width: 240px;
+    padding: 1.5rem 1rem;
+    border-right: 1px solid var(--pico-muted-border-color);
+    display: flex;
+    flex-direction: column;
+    position: sticky;
+    top: 0;
+    height: 100vh;
+    overflow-y: auto;
+}
+
+.sidebar header h2 {
+    margin-bottom: 1rem;
+    font-size: 1.4rem;
+}
+
+.sidebar ul {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+}
+
+.sidebar ul li {
+    margin: 0;
+    padding: 0;
+}
+
+.sidebar ul li a {
+    display: block;
+    padding: 0.6rem 0.8rem;
+    border-radius: 6px;
+    text-decoration: none;
+    color: var(--pico-color);
+    transition: background 0.15s;
+}
+
+.sidebar ul li a:hover {
+    background: var(--pico-primary-focus);
+}
+
+.sidebar ul li a.active {
+    background: var(--pico-primary-background);
+    color: var(--pico-primary-inverse);
+}
+
+.sidebar footer {
+    margin-top: auto;
+    padding-top: 1rem;
+}
+
+.sidebar footer button {
+    width: 100%;
+}
+
+.content {
+    flex: 1;
+    padding: 2rem;
+    max-width: 960px;
+    position: relative;
+}
+
+/* Login page */
+.login-container {
+    max-width: 400px;
+    margin-top: 10vh;
+}
+
+.login-container article {
+    padding: 2rem;
+}
+
+.error {
+    color: var(--pico-del-color);
+    margin-bottom: 1rem;
+}
+
+/* Toast notifications */
+#toast-container {
+    position: fixed;
+    top: 1rem;
+    right: 1rem;
+    z-index: 1000;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.toast {
+    background: var(--pico-primary-background);
+    color: var(--pico-primary-inverse);
+    padding: 0.75rem 1.25rem;
+    border-radius: 6px;
+    opacity: 0;
+    transform: translateX(1rem);
+    transition: opacity 0.3s, transform 0.3s;
+    max-width: 350px;
+}
+
+.toast.show {
+    opacity: 1;
+    transform: translateX(0);
+}
+
+/* Channel cards */
+.channel-card {
+    display: flex;
+    gap: 1rem;
+    align-items: flex-start;
+    padding: 1rem;
+    border: 1px solid var(--pico-muted-border-color);
+    border-radius: 8px;
+    margin-bottom: 0.75rem;
+}
+
+.channel-card img,
+.channel-card .placeholder-img {
+    width: 64px;
+    height: 64px;
+    border-radius: 50%;
+    object-fit: cover;
+    flex-shrink: 0;
+}
+
+.placeholder-img {
+    background: var(--pico-muted-border-color);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.placeholder-img svg {
+    width: 32px;
+    height: 32px;
+    opacity: 0.4;
+}
+
+.channel-card .channel-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.channel-card .channel-info h4 {
+    margin: 0 0 0.25rem;
+}
+
+.channel-card .channel-info small {
+    color: var(--pico-muted-color);
+}
+
+.channel-card .channel-actions {
+    display: flex;
+    gap: 0.5rem;
+    flex-shrink: 0;
+}
+
+.channel-card .channel-actions button {
+    padding: 0.3rem 0.6rem;
+    font-size: 0.85rem;
+    margin: 0;
+}
+
+/* Channel edit form */
+.channel-edit-form {
+    padding: 1rem;
+    border: 1px solid var(--pico-primary-focus);
+    border-radius: 8px;
+    margin-bottom: 0.75rem;
+}
+
+.channel-edit-form .form-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.75rem;
+}
+
+.channel-edit-form .form-grid .full-width {
+    grid-column: 1 / -1;
+}
+
+.channel-edit-form .form-actions {
+    display: flex;
+    gap: 0.5rem;
+    margin-top: 1rem;
+}
+
+.channel-edit-form .form-actions button {
+    margin: 0;
+}
+
+/* Tag list */
+.tag-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.5rem 0;
+    border-bottom: 1px solid var(--pico-muted-border-color);
+}
+
+.tag-item:last-child {
+    border-bottom: none;
+}
+
+.tag-item button {
+    padding: 0.2rem 0.5rem;
+    font-size: 0.8rem;
+    margin: 0;
+}
+
+/* Settings sections */
+.settings-section {
+    margin-bottom: 2rem;
+    padding-bottom: 2rem;
+    border-bottom: 1px solid var(--pico-muted-border-color);
+}
+
+.settings-section:last-child {
+    border-bottom: none;
+}
+
+/* Progress bar */
+.progress-wrapper {
+    margin: 1rem 0;
+}
+
+.progress-bar {
+    width: 100%;
+    height: 8px;
+    background: var(--pico-muted-border-color);
+    border-radius: 4px;
+    overflow: hidden;
+}
+
+.progress-bar .progress-fill {
+    height: 100%;
+    background: var(--pico-primary);
+    transition: width 0.3s;
+    border-radius: 4px;
+}
+
+/* Section headers */
+.section-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 1rem;
+}
+
+/* Inline checkbox row */
+.checkbox-row {
+    display: flex;
+    gap: 1.5rem;
+    align-items: center;
+}
+
+.checkbox-row label {
+    margin-bottom: 0;
+}
+
+/* History status marks */
+.error-mark {
+    background: var(--pico-del-color);
+    color: var(--pico-primary-inverse);
+}
+
+.running-mark {
+    background: var(--pico-primary);
+    color: var(--pico-primary-inverse);
+}
+
+/* Keyword tag chips */
+.keyword-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    padding: 0.5rem;
+    border: 1px solid var(--pico-form-element-border-color);
+    border-radius: var(--pico-border-radius);
+    background: var(--pico-form-element-background-color);
+    min-height: 2.75rem;
+    align-items: center;
+    cursor: text;
+}
+
+.keyword-tags:focus-within {
+    border-color: var(--pico-form-element-active-border-color);
+}
+
+.keyword-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    padding: 0.2rem 0.5rem;
+    background: var(--pico-primary-focus);
+    color: var(--pico-color);
+    border-radius: 1rem;
+    font-size: 0.85rem;
+    line-height: 1.4;
+}
+
+.keyword-chip button {
+    all: unset;
+    cursor: pointer;
+    font-size: 1rem;
+    line-height: 1;
+    opacity: 0.6;
+    padding: 0 0.1rem;
+}
+
+.keyword-chip button:hover {
+    opacity: 1;
+}
+
+.keyword-tags input {
+    all: unset;
+    flex: 1;
+    min-width: 80px;
+    font-size: 0.85rem;
+    color: var(--pico-color);
+}
+
+/* Inline new tag creator + image edit — critical styles are inline in templates to beat PicoCSS */
+
+/* Dashboard — inline styles in template to beat PicoCSS, only progress overrides here */
+.dash-status p {
+    margin: 0;
+}
+
+.dash-status .progress-wrapper {
+    margin: 0.4rem 0 0;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .layout {
+        flex-direction: column;
+    }
+
+    .sidebar {
+        width: 100%;
+        min-width: unset;
+        height: auto;
+        position: static;
+        border-right: none;
+        border-bottom: 1px solid var(--pico-muted-border-color);
+    }
+
+    .sidebar ul {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.25rem;
+    }
+
+    .content {
+        padding: 1rem;
+    }
+
+    .channel-edit-form .form-grid {
+        grid-template-columns: 1fr;
+    }
+
+}

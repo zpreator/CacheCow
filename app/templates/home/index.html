@@ -1,0 +1,142 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div style="display: flex; align-items: flex-start; justify-content: space-between; gap: 1.5rem; margin-bottom: 1.25rem;">
+    <h2 style="margin: 0; white-space: nowrap;">Dashboard</h2>
+    <div style="flex: 1; min-width: 0; text-align: right;" hx-get="/downloads/progress" hx-trigger="load, every 2s" hx-swap="innerHTML">
+        {% include "settings/_progress.html" %}
+    </div>
+</div>
+
+<!-- Quick Stats -->
+<div style="display: flex; gap: 0.5rem; margin-bottom: 1.25rem;">
+    <div style="flex: 1; text-align: center; padding: 0.6rem 0.4rem; border: 1px solid var(--pico-muted-border-color); border-radius: 8px;">
+        <span style="display: block; font-size: 1.5rem; font-weight: 700; line-height: 1.2;">{{ subscribed_channels }}</span>
+        <span style="display: block; font-size: 0.75rem; color: var(--pico-muted-color); margin-top: 0.15rem;">Channels</span>
+    </div>
+    <div style="flex: 1; text-align: center; padding: 0.6rem 0.4rem; border: 1px solid var(--pico-muted-border-color); border-radius: 8px;">
+        <span style="display: block; font-size: 1.5rem; font-weight: 700; line-height: 1.2;">{{ total_videos }}</span>
+        <span style="display: block; font-size: 0.75rem; color: var(--pico-muted-color); margin-top: 0.15rem;">Videos</span>
+    </div>
+    <div style="flex: 1; text-align: center; padding: 0.6rem 0.4rem; border: 1px solid var(--pico-muted-border-color); border-radius: 8px;">
+        <span style="display: block; font-size: 1.5rem; font-weight: 700; line-height: 1.2;{% if failed_count > 0 %} color: var(--pico-del-color);{% endif %}">{{ failed_count }}</span>
+        <span style="display: block; font-size: 0.75rem; color: var(--pico-muted-color); margin-top: 0.15rem;">Failed</span>
+    </div>
+    {% if disk_usage %}
+    <div style="flex: 1; text-align: center; padding: 0.6rem 0.4rem; border: 1px solid var(--pico-muted-border-color); border-radius: 8px;">
+        <span style="display: block; font-size: 1.5rem; font-weight: 700; line-height: 1.2;">{{ disk_usage.percent }}%</span>
+        <span style="display: block; font-size: 0.75rem; color: var(--pico-muted-color); margin-top: 0.15rem;">Disk ({{ disk_usage.used_gb }}/{{ disk_usage.total_gb }}G)</span>
+    </div>
+    {% endif %}
+    {% if settings %}
+    <div style="flex: 1; text-align: center; padding: 0.6rem 0.4rem; border: 1px solid var(--pico-muted-border-color); border-radius: 8px;">
+        <span style="display: block; font-size: 1.5rem; font-weight: 700; line-height: 1.2;">{{ settings.minutes_between_runs }}m</span>
+        <span style="display: block; font-size: 0.75rem; color: var(--pico-muted-color); margin-top: 0.15rem;">Interval</span>
+    </div>
+    {% endif %}
+</div>
+
+<!-- Two-column layout: Recent Channels + Tags -->
+<div style="display: grid; grid-template-columns: 1.4fr 1fr; gap: 1rem;">
+    <!-- Recent Channels -->
+    {% if recent_channels %}
+    <div style="border: 1px solid var(--pico-muted-border-color); border-radius: 8px; padding: 0.75rem 1rem;">
+        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.5rem;">
+            <h4 style="margin: 0; font-size: 0.95rem;">Recent Channels</h4>
+            <a href="/channels" style="font-size: 0.8rem; text-decoration: none;">View all</a>
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 0.35rem;">
+            {% for channel in recent_channels %}
+            <div style="display: flex; align-items: center; gap: 0.6rem; padding: 0.3rem 0;">
+                {% if channel.image %}
+                <img src="{{ channel.image }}" alt="{{ channel.name }}"
+                     style="width: 36px; height: 36px; min-width: 36px; border-radius: 50%; object-fit: cover;">
+                {% else %}
+                <div style="width: 36px; height: 36px; min-width: 36px; border-radius: 50%; background: var(--pico-muted-border-color); display: flex; align-items: center; justify-content: center;">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" style="width: 18px; height: 18px; opacity: 0.4;"><path d="M12 12c2.7 0 4.8-2.1 4.8-4.8S14.7 2.4 12 2.4 7.2 4.5 7.2 7.2 9.3 12 12 12zm0 2.4c-3.2 0-9.6 1.6-9.6 4.8v2.4h19.2v-2.4c0-3.2-6.4-4.8-9.6-4.8z"/></svg>
+                </div>
+                {% endif %}
+                <div style="flex: 1; min-width: 0; display: flex; flex-direction: column; line-height: 1.3;">
+                    <span style="font-size: 0.85rem; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{{ channel.name }}</span>
+                    <span style="font-size: 0.72rem; color: var(--pico-muted-color);">{{ channel.tag.name }}</span>
+                </div>
+                <button class="outline secondary"
+                        style="padding: 0.15rem 0.45rem; font-size: 0.72rem; margin: 0;"
+                        hx-post="/downloads/channel/{{ channel.id }}"
+                        hx-swap="none">DL</button>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Tags + Schedule -->
+    <div style="border: 1px solid var(--pico-muted-border-color); border-radius: 8px; padding: 0.75rem 1rem;">
+        {% if tag_counts %}
+        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.5rem;">
+            <h4 style="margin: 0; font-size: 0.95rem;">Tags</h4>
+            <a href="/tags" style="font-size: 0.8rem; text-decoration: none;">Manage</a>
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 0.2rem;">
+            {% for tag_name, count in tag_counts %}
+            <div style="display: flex; justify-content: space-between; align-items: center; padding: 0.3rem 0.4rem; font-size: 0.85rem; border-radius: 4px;">
+                <span>{{ tag_name }}</span>
+                <span style="font-weight: 600; color: var(--pico-muted-color); font-size: 0.8rem;">{{ count }}</span>
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        {% if settings %}
+        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.5rem; margin-top: 1rem;">
+            <h4 style="margin: 0; font-size: 0.95rem;">Schedule</h4>
+            <a href="/settings" style="font-size: 0.8rem; text-decoration: none;">Settings</a>
+        </div>
+        <div style="display: flex; flex-wrap: wrap; gap: 0.4rem; font-size: 0.8rem; color: var(--pico-muted-color);">
+            <span style="padding: 0.2rem 0.5rem; background: var(--pico-primary-focus); border-radius: 1rem;">{{ settings.days }}d lookback</span>
+            <span style="padding: 0.2rem 0.5rem; background: var(--pico-primary-focus); border-radius: 1rem;">{{ settings.items }} max/ch</span>
+            <span style="padding: 0.2rem 0.5rem; background: var(--pico-primary-focus); border-radius: 1rem;">{{ settings.max_duration }}m max</span>
+            {% if settings.remove_old_files %}
+            <span style="padding: 0.2rem 0.5rem; background: var(--pico-primary-focus); border-radius: 1rem;">Clean {{ settings.clean_threshold }}d</span>
+            {% endif %}
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Recent Activity -->
+<div style="border: 1px solid var(--pico-muted-border-color); border-radius: 8px; padding: 0.75rem 1rem; margin-top: 1rem;">
+    <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.5rem;">
+        <h4 style="margin: 0; font-size: 0.95rem;">Recent Activity</h4>
+        <a href="/history" style="font-size: 0.8rem; text-decoration: none;">Full history</a>
+    </div>
+    {% if recent_logs %}
+    <div style="display: flex; flex-direction: column;">
+        {% for log in recent_logs %}
+        <div style="display: flex; align-items: center; gap: 0.6rem; padding: 0.35rem 0; font-size: 0.85rem;{% if not loop.last %} border-bottom: 1px solid var(--pico-muted-border-color);{% endif %}">
+            {% if log.channel and log.channel.image %}
+            <img src="{{ log.channel.image }}" alt=""
+                 style="width: 26px; height: 26px; min-width: 26px; border-radius: 50%; object-fit: cover;">
+            {% else %}
+            <div style="width: 26px; height: 26px; min-width: 26px; border-radius: 50%; background: var(--pico-muted-border-color); display: flex; align-items: center; justify-content: center;">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" style="width: 14px; height: 14px; opacity: 0.4;"><path d="M12 12c2.7 0 4.8-2.1 4.8-4.8S14.7 2.4 12 2.4 7.2 4.5 7.2 7.2 9.3 12 12 12zm0 2.4c-3.2 0-9.6 1.6-9.6 4.8v2.4h19.2v-2.4c0-3.2-6.4-4.8-9.6-4.8z"/></svg>
+            </div>
+            {% endif %}
+            <span style="flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 500;">{{ log.channel.name if log.channel else "Unknown" }}</span>
+            <span style="color: var(--pico-muted-color); font-size: 0.8rem; white-space: nowrap;">{{ log.videos_downloaded }} vid{{ "s" if log.videos_downloaded != 1 }}</span>
+            {% if log.status == "completed" %}
+                <mark style="font-size: 0.7rem; padding: 0.1rem 0.4rem; border-radius: 3px;">OK</mark>
+            {% elif log.status == "failed" %}
+                <mark style="font-size: 0.7rem; padding: 0.1rem 0.4rem; border-radius: 3px; background: var(--pico-del-color); color: var(--pico-primary-inverse);">FAIL</mark>
+            {% else %}
+                <mark style="font-size: 0.7rem; padding: 0.1rem 0.4rem; border-radius: 3px; background: var(--pico-primary); color: var(--pico-primary-inverse);">RUN</mark>
+            {% endif %}
+            <span style="color: var(--pico-muted-color); font-size: 0.78rem; white-space: nowrap;">{{ log.started_at.strftime("%b %d %H:%M") if log.started_at else "-" }}</span>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <p style="font-size: 0.85rem; color: var(--pico-muted-color); margin: 0.5rem 0;">No downloads yet. Add channels and run the downloader to get started.</p>
+    {% endif %}
+</div>
+{% endblock %}

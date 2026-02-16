@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+
+{% block content %}
+<h2>Subscriptions</h2>
+
+<details>
+    <summary>How Subscriptions Work</summary>
+    <p>These are app-specific subscriptions, separate from your YouTube account.
+    Add channels by URL and CacheCow will periodically download new videos from them.</p>
+</details>
+
+<details>
+    <summary>Why Limit Downloads?</summary>
+    <p>Download limits help manage disk space. By default, only recent videos within a
+    certain number of days and up to a maximum count are downloaded.</p>
+</details>
+
+{% if subscribed %}
+<h3>Subscribed ({{ subscribed|length }})</h3>
+{% for channel in subscribed %}
+<div id="channel-{{ channel.id }}">
+    {% include "channels/_card.html" %}
+</div>
+{% endfor %}
+{% else %}
+<p>No subscribed channels yet. <a href="/channels/add">Add one</a>.</p>
+{% endif %}
+
+{% if unsubscribed %}
+<h3>Not Subscribed ({{ unsubscribed|length }})</h3>
+{% for channel in unsubscribed %}
+<div id="channel-{{ channel.id }}">
+    {% include "channels/_card.html" %}
+</div>
+{% endfor %}
+{% endif %}
+{% endblock %}

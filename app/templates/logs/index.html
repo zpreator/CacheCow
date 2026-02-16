@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+
+{% block content %}
+<h2>Docker Logs</h2>
+
+<label>
+    Lines to show
+    <input type="range" min="10" max="500" value="{{ lines }}" id="log-lines"
+           oninput="document.getElementById('lines-display').textContent = this.value">
+    <small id="lines-display">{{ lines }}</small>
+</label>
+
+<button hx-get="/logs/fetch"
+        hx-target="#log-output"
+        hx-swap="innerHTML"
+        hx-include="#log-lines"
+        hx-vals='js:{"lines": document.getElementById("log-lines").value}'>
+    Refresh Logs
+</button>
+
+<div id="log-output" style="margin-top: 1rem;">
+    <pre><code>{{ log_output }}</code></pre>
+</div>
+{% endblock %}

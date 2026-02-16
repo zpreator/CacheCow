@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CacheCow - Login</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css">
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+    <main class="container login-container">
+        <article>
+            <header>
+                <h2>CacheCow</h2>
+            </header>
+            {% if error %}
+            <p class="error">{{ error }}</p>
+            {% endif %}
+            <form method="post" action="/login">
+                <label for="username">Username</label>
+                <input type="text" id="username" name="username" required autofocus>
+                <label for="password">Password</label>
+                <input type="password" id="password" name="password" required>
+                <button type="submit">Login</button>
+            </form>
+        </article>
+    </main>
+</body>
+</html>
