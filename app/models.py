@@ -4,6 +4,7 @@ from typing import Optional
 from sqlalchemy import ForeignKey, String, Text, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
+from app.config import settings as app_settings
 from app.database import Base
 
 
@@ -42,7 +43,7 @@ class Settings(Base):
     __tablename__ = "settings"
 
     id: Mapped[int] = mapped_column(primary_key=True, default=1)
-    download_path: Mapped[str] = mapped_column(String(500), default="/app/downloads")
+    download_path: Mapped[str] = mapped_column(String(500), default=app_settings.download_path)
     minutes_between_runs: Mapped[int] = mapped_column(default=60)
     random_interval_lower: Mapped[int] = mapped_column(default=15)
     random_interval_upper: Mapped[int] = mapped_column(default=45)
@@ -73,5 +74,5 @@ def ensure_defaults(db):
         db.add(Tag(name="other"))
         db.commit()
     if not db.query(Settings).first():
-        db.add(Settings())
+        db.add(Settings(download_path=app_settings.download_path))
         db.commit()

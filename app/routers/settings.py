@@ -5,6 +5,7 @@ from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 
+from app.config import settings as app_settings
 from app.database import get_db
 from app.models import Settings
 
@@ -15,7 +16,7 @@ templates = Jinja2Templates(directory="app/templates")
 def _get_settings(db: Session) -> Settings:
     s = db.query(Settings).first()
     if not s:
-        s = Settings()
+        s = Settings(download_path=app_settings.download_path)
         db.add(s)
         db.commit()
     return s
