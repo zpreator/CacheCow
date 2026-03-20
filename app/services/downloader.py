@@ -12,20 +12,18 @@ ARCHIVE_FILE = "data/archive.txt"
 
 class Logger:
     def debug(self, msg):
-        if msg.startswith("[download]") and "has already been recorded in the archive" not in msg and "--break-on-existing" not in msg:
-            print(msg)
+        pass  # suppress verbose debug output
 
     def info(self, msg):
-        if msg.startswith("[download]") and "has already been recorded in the archive" not in msg and "--break-on-existing" not in msg:
-            print(msg)
+        pass  # suppress verbose info output
 
     def warning(self, msg):
         if "--break-on-existing" not in msg:
-            print(msg)
+            print(f"[WARNING] {msg}")
 
     def error(self, msg):
         if "--break-on-existing" not in msg:
-            print(msg)
+            print(f"[ERROR] {msg}")
 
 
 def clean_metadata(file_path, creator_name, video_title):
@@ -40,29 +38,37 @@ def clean_metadata(file_path, creator_name, video_title):
     os.replace(temp_path, file_path)
 
 
-def my_hook(d):
-    if d["status"] == "skipped":
-        print(f"Skipping: {d['filename']}")
-    if d["status"] == "finished":
-        if ".mp4" in d["filename"]:
-            print("Downloaded:", d["filename"])
+def make_hook(counter: list):
+    """Return a progress hook that increments counter[0] on each completed download."""
+    def hook(d):
+        if d["status"] == "finished":
+            filename = d.get("filename", "")
+            if ".mp4" in filename or ".webm" in filename or ".mkv" in filename:
+                counter[0] += 1
+                print(f"[DOWNLOADED] {filename}")
+    return hook
 
 
-def tik_tok_hook(d):
-    if d["status"] == "finished":
-        if ".mp4" in d["filename"]:
-            print("Downloaded:", d["filename"])
-        filepath = Path(d["filename"])
-        filename = filepath.stem
-        try:
-            parts = filename.split(" - ", 1)
-            if len(parts) == 2:
-                creator_name, video_title = parts
-                clean_metadata(str(filepath), creator_name.strip(), filename.strip())
-            else:
-                print(f"Unexpected filename format: {filename}")
-        except Exception as e:
-            print(f"Error cleaning metadata for {filepath}: {e}")
+def make_tiktok_hook(counter: list):
+    """Return a TikTok progress hook that increments counter[0] on each completed download."""
+    def hook(d):
+        if d["status"] == "finished":
+            filename = d.get("filename", "")
+            if ".mp4" in filename:
+                counter[0] += 1
+                print(f"[DOWNLOADED] {filename}")
+            filepath = Path(filename)
+            stem = filepath.stem
+            try:
+                parts = stem.split(" - ", 1)
+                if len(parts) == 2:
+                    creator_name, video_title = parts
+                    clean_metadata(str(filepath), creator_name.strip(), stem.strip())
+                else:
+                    print(f"[WARNING] Unexpected filename format: {stem}")
+            except Exception as e:
+                print(f"[ERROR] Cleaning metadata for {filepath}: {e}")
+    return hook
 
 
 def match_filter(info_dict, keywords, excludes, max_duration_min=None):
@@ -123,19 +129,14 @@ def clean_fragments(download_dir):
         print(f"Cleaned up {deleted} leftover fragment files.")
 
 
-def download_channel(channel, settings):
+def download_channel(channel, settings) -> int:
     """Download videos for a single channel using yt-dlp.
 
-    Args:
-        channel: Channel ORM object with name, link, tag, use_global_settings,
-                 download_all, max_duration, days, items, include_keywords,
-                 exclude_keywords
-        settings: Settings ORM object with download_path, max_duration, days,
-                  items, random_interval_lower, random_interval_upper
-
     Returns:
-        Number of videos downloaded (approximate, based on hook calls).
+        Number of videos downloaded.
     """
+    counter = [0]  # mutable container so hook can increment it
+
     for attempt in range(3):
         try:
             if channel.use_global_settings:
@@ -164,9 +165,9 @@ def download_channel(channel, settings):
                 postprocessors = [
                     {"key": "EmbedThumbnail"},
                 ]
-                hook_func = tik_tok_hook
+                hook_func = make_tiktok_hook(counter)
             else:
-                fmt = "bestvideo[height=1080]+bestaudio/bestvideo[height>=720]+bestaudio/bestvideo+bestaudio/best"
+                fmt = "bestvideo[height<=1080][vcodec^=avc1]+bestaudio[acodec^=mp4a]/bestvideo[height<=1080]+bestaudio[acodec^=mp4a]/bestvideo[height<=1080]+bestaudio/best"
                 postprocessors = [
                     {
                         "key": "FFmpegVideoConvertor",
@@ -174,7 +175,7 @@ def download_channel(channel, settings):
                     },
                     {"key": "FFmpegMetadata"},
                 ]
-                hook_func = my_hook
+                hook_func = make_hook(counter)
 
             ydl_opts = {
                 "format": fmt,
@@ -206,7 +207,9 @@ def download_channel(channel, settings):
             break
         except Exception as e:
             if "--break-on-existing" not in str(e):
-                print(f"Error {channel.name}, {e}")
+                print(f"[ERROR] {channel.name}: {e}")
             if "not a bot" in str(e):
-                print("Youtube thinks we are a bot, sleeping for 5 minutes before retrying...")
+                print("[WARNING] YouTube bot detection triggered, sleeping 5 minutes before retry...")
                 time.sleep(300)
+
+    return counter[0]

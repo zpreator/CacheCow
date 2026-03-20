@@ -11,9 +11,30 @@ COOKIE_NAME = "cachecow_session"
 MAX_AGE = 60 * 60 * 24 * 7  # 7 days
 
 
+def _get_db_password_hash() -> str | None:
+    """Return the password hash stored in DB settings, if any."""
+    try:
+        from app.database import SessionLocal
+        from app.models import Settings
+        db = SessionLocal()
+        try:
+            s = db.query(Settings).first()
+            return s.password_hash if s else None
+        finally:
+            db.close()
+    except Exception:
+        return None
+
+
 def verify_password(password: str) -> bool:
     hashed = hashlib.sha256(password.encode()).hexdigest()
-    return hashed == settings.app_pass_hash
+    db_hash = _get_db_password_hash()
+    expected = db_hash if db_hash else settings.app_pass_hash
+    return hashed == expected
+
+
+def hash_password(password: str) -> str:
+    return hashlib.sha256(password.encode()).hexdigest()
 
 
 def create_session_cookie(response: Response, username: str):

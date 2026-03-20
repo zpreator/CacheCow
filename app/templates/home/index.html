@@ -123,13 +123,13 @@
             </div>
             {% endif %}
             <span style="flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 500;">{{ log.channel.name if log.channel else "Unknown" }}</span>
-            <span style="color: var(--pico-muted-color); font-size: 0.8rem; white-space: nowrap;">{{ log.videos_downloaded }} vid{{ "s" if log.videos_downloaded != 1 }}</span>
             {% if log.status == "completed" %}
-                <mark style="font-size: 0.7rem; padding: 0.1rem 0.4rem; border-radius: 3px;">OK</mark>
+                <span style="color: var(--pico-muted-color); font-size: 0.8rem; white-space: nowrap;">{{ log.videos_downloaded }} new</span>
+                <mark style="font-size: 0.7rem; padding: 0.1rem 0.4rem; border-radius: 3px;">Done</mark>
             {% elif log.status == "failed" %}
-                <mark style="font-size: 0.7rem; padding: 0.1rem 0.4rem; border-radius: 3px; background: var(--pico-del-color); color: var(--pico-primary-inverse);">FAIL</mark>
+                <mark style="font-size: 0.7rem; padding: 0.1rem 0.4rem; border-radius: 3px; background: var(--pico-del-color); color: var(--pico-primary-inverse);">Failed</mark>
             {% else %}
-                <mark style="font-size: 0.7rem; padding: 0.1rem 0.4rem; border-radius: 3px; background: var(--pico-primary); color: var(--pico-primary-inverse);">RUN</mark>
+                <mark style="font-size: 0.7rem; padding: 0.1rem 0.4rem; border-radius: 3px; background: var(--pico-primary); color: var(--pico-primary-inverse);">Running</mark>
             {% endif %}
             <span style="color: var(--pico-muted-color); font-size: 0.78rem; white-space: nowrap;">{{ log.started_at.strftime("%b %d %H:%M") if log.started_at else "-" }}</span>
         </div>

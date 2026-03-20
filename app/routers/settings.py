@@ -5,6 +5,7 @@ from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 
+from app.auth import hash_password, verify_password
 from app.config import settings as app_settings
 from app.database import get_db
 from app.models import Settings
@@ -78,4 +79,35 @@ async def update_cleaning_settings(request: Request, db: Session = Depends(get_d
 
     response = HTMLResponse("")
     response.headers["HX-Trigger"] = json.dumps({"showToast": "Cleaning settings saved"})
+    return response
+
+
+@router.put("/password", response_class=HTMLResponse)
+async def change_password(request: Request, db: Session = Depends(get_db)):
+    form = await request.form()
+    current = form.get("current_password", "")
+    new_pw = form.get("new_password", "").strip()
+    confirm = form.get("confirm_password", "").strip()
+
+    if not verify_password(current):
+        response = HTMLResponse("")
+        response.headers["HX-Trigger"] = json.dumps({"showToast": "Current password is incorrect"})
+        return response
+
+    if not new_pw:
+        response = HTMLResponse("")
+        response.headers["HX-Trigger"] = json.dumps({"showToast": "New password cannot be empty"})
+        return response
+
+    if new_pw != confirm:
+        response = HTMLResponse("")
+        response.headers["HX-Trigger"] = json.dumps({"showToast": "Passwords do not match"})
+        return response
+
+    s = _get_settings(db)
+    s.password_hash = hash_password(new_pw)
+    db.commit()
+
+    response = HTMLResponse("")
+    response.headers["HX-Trigger"] = json.dumps({"showToast": "Password changed successfully"})
     return response

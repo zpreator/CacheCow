@@ -52,18 +52,21 @@ def download_all_channels(self):
 
         for i, channel in enumerate(channels):
             _set_progress(r, channel.name, i, total)
+            print(f"[DOWNLOAD] Starting: {channel.name} ({i+1}/{total})")
 
             log = DownloadLog(channel_id=channel.id, status="running")
             db.add(log)
             db.commit()
 
             try:
-                download_channel(channel, settings)
+                count = download_channel(channel, settings)
                 log.status = "completed"
+                log.videos_downloaded = count
+                print(f"[DOWNLOAD] Completed: {channel.name} — {count} video(s) downloaded")
             except Exception as e:
                 log.status = "failed"
                 log.error_message = str(e)
-                print(f"Error downloading {channel.name}: {e}")
+                print(f"[ERROR] Failed: {channel.name}: {e}")
 
             from sqlalchemy import func
             log.finished_at = func.now()
@@ -74,7 +77,7 @@ def download_all_channels(self):
                     settings.random_interval_lower,
                     settings.random_interval_upper,
                 )
-                print(f"Sleeping for {sleep_time} seconds before next download...")
+                print(f"[DOWNLOAD] Sleeping {sleep_time}s before next channel...")
                 time.sleep(sleep_time)
 
         clean_fragments(settings.download_path)
@@ -96,18 +99,21 @@ def download_single_channel(self, channel_id: int):
             return
 
         _set_progress(r, channel.name, 0, 1)
+        print(f"[DOWNLOAD] Starting: {channel.name}")
 
         log = DownloadLog(channel_id=channel.id, status="running")
         db.add(log)
         db.commit()
 
         try:
-            download_channel(channel, settings)
+            count = download_channel(channel, settings)
             log.status = "completed"
+            log.videos_downloaded = count
+            print(f"[DOWNLOAD] Completed: {channel.name} — {count} video(s) downloaded")
         except Exception as e:
             log.status = "failed"
             log.error_message = str(e)
-            print(f"Error downloading {channel.name}: {e}")
+            print(f"[ERROR] Failed: {channel.name}: {e}")
 
         from sqlalchemy import func
         log.finished_at = func.now()

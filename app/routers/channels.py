@@ -42,8 +42,32 @@ def _best_thumbnail(info: dict) -> str:
 
 
 def _extract_channel_info(url: str) -> dict | None:
-    """Use yt-dlp to extract channel/playlist metadata from a URL."""
-    ydl_opts = {
+    """Use yt-dlp to extract channel/playlist metadata from a URL.
+
+    Tries to get the real channel avatar by fetching full channel metadata.
+    Falls back to flat extraction with video thumbnail if needed.
+    """
+    # First attempt: full extraction (gets channel avatar thumbnails)
+    ydl_opts_full = {
+        "quiet": True,
+        "no_warnings": True,
+        "skip_download": True,
+        "playlistend": 1,
+    }
+    try:
+        with yt_dlp.YoutubeDL(ydl_opts_full) as ydl:
+            info = ydl.extract_info(url, download=False)
+            if info:
+                image = _best_thumbnail(info)
+                name = info.get("channel") or info.get("uploader") or info.get("title") or ""
+                resolved_url = info.get("channel_url") or info.get("uploader_url") or url
+                if name and image:
+                    return {"name": name, "image": image, "url": resolved_url}
+    except Exception:
+        pass
+
+    # Fallback: flat extraction
+    ydl_opts_flat = {
         "quiet": True,
         "no_warnings": True,
         "skip_download": True,
@@ -51,11 +75,10 @@ def _extract_channel_info(url: str) -> dict | None:
         "playlistend": 1,
     }
     try:
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+        with yt_dlp.YoutubeDL(ydl_opts_flat) as ydl:
             info = ydl.extract_info(url, download=False)
             if not info:
                 return None
-
             return {
                 "name": info.get("channel") or info.get("uploader") or info.get("title") or "",
                 "image": _best_thumbnail(info),
@@ -170,6 +193,63 @@ async def create_channel(request: Request, db: Session = Depends(get_db)):
 
     from fastapi.responses import RedirectResponse
     return RedirectResponse("/channels", status_code=302)
+
+
+def _extract_channel_icon(url: str) -> str:
+    """Fast extraction of a channel's avatar URL using flat extraction.
+
+    Returns the avatar URL if found, empty string otherwise.
+    Channel avatars are served from yt3.ggpht.com or yt3.googleusercontent.com,
+    which distinguishes them from video thumbnails (i.ytimg.com).
+    """
+    ydl_opts = {
+        "quiet": True,
+        "no_warnings": True,
+        "skip_download": True,
+        "extract_flat": True,
+        "playlistend": 1,
+    }
+    try:
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            info = ydl.extract_info(url, download=False)
+            if not info:
+                return ""
+            for thumb in info.get("thumbnails") or []:
+                t_url = thumb.get("url", "")
+                if "yt3.ggpht" in t_url or "yt3.googleusercontent" in t_url:
+                    return t_url
+            return ""
+    except Exception:
+        return ""
+
+
+@router.get("/icon", response_class=HTMLResponse)
+async def get_channel_icon(url: str = Query("")):
+    """Return an <img> tag with the real channel avatar, for lazy loading."""
+    if not url:
+        return HTMLResponse(_icon_placeholder())
+    loop = asyncio.get_event_loop()
+    icon_url = await loop.run_in_executor(_executor, _extract_channel_icon, url)
+    if icon_url:
+        import html as _html
+        return HTMLResponse(
+            f'<img src="{_html.escape(icon_url)}" alt="" '
+            f'style="width:40px;height:40px;border-radius:50%;object-fit:cover;">'
+        )
+    return HTMLResponse(_icon_placeholder())
+
+
+def _icon_placeholder() -> str:
+    return (
+        '<div style="width:40px;height:40px;border-radius:50%;'
+        'background:var(--pico-muted-border-color);display:flex;'
+        'align-items:center;justify-content:center;">'
+        '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" '
+        'style="width:20px;height:20px;opacity:0.4;">'
+        '<path d="M12 12c2.7 0 4.8-2.1 4.8-4.8S14.7 2.4 12 2.4 7.2 4.5 7.2 7.2 9.3 12 12 12z'
+        'm0 2.4c-3.2 0-9.6 1.6-9.6 4.8v2.4h19.2v-2.4c0-3.2-6.4-4.8-9.6-4.8z"/>'
+        '</svg></div>'
+    )
 
 
 @router.get("/lookup")

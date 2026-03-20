@@ -9,11 +9,9 @@
     <fieldset role="group">
         <input type="text" id="search-input" placeholder="Search YouTube for a channel..."
                hx-get="/channels/search"
-               hx-trigger="keyup changed delay:500ms"
+               hx-trigger="input changed delay:500ms, keyup[key=='Enter']"
                hx-target="#search-results"
                hx-swap="innerHTML"
-               hx-params="none"
-               hx-vals='js:{"q": document.getElementById("search-input").value}'
                name="q">
         <button type="button"
                 hx-get="/channels/search"
@@ -315,7 +313,11 @@ function fillFromResult(name, url, image) {
     document.getElementById("search-results").innerHTML = "";
     document.getElementById("search-input").value = "";
 
+    // Show preview immediately with the search thumbnail
     showPreview(name, image);
+
+    // Then trigger a full lookup to get the actual channel avatar
+    lookupUrl(url);
 
     // Scroll to the form
     document.getElementById("url-input").scrollIntoView({ behavior: "smooth" });

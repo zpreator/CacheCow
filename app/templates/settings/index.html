@@ -86,4 +86,28 @@
         <button type="submit">Save Cleaning Settings</button>
     </form>
 </div>
+
+<!-- Change Password -->
+<div class="settings-section">
+    <h3>Change Password</h3>
+    <p style="font-size: 0.85rem; color: var(--pico-muted-color);">Default credentials on first install are <strong>admin / admin</strong>.</p>
+    <form hx-put="/settings/password" hx-swap="none">
+        <div class="form-grid">
+            <label>
+                Current Password
+                <input type="password" name="current_password" required autocomplete="current-password">
+            </label>
+            <div></div>
+            <label>
+                New Password
+                <input type="password" name="new_password" required autocomplete="new-password">
+            </label>
+            <label>
+                Confirm New Password
+                <input type="password" name="confirm_password" required autocomplete="new-password">
+            </label>
+        </div>
+        <button type="submit" style="margin-top: 1rem;">Change Password</button>
+    </form>
+</div>
 {% endblock %}

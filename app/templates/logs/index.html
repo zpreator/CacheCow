@@ -1,24 +1,56 @@
 {% extends "base.html" %}
 
 {% block content %}
-<h2>Docker Logs</h2>
-
-<label>
-    Lines to show
-    <input type="range" min="10" max="500" value="{{ lines }}" id="log-lines"
-           oninput="document.getElementById('lines-display').textContent = this.value">
-    <small id="lines-display">{{ lines }}</small>
-</label>
-
-<button hx-get="/logs/fetch"
-        hx-target="#log-output"
-        hx-swap="innerHTML"
-        hx-include="#log-lines"
-        hx-vals='js:{"lines": document.getElementById("log-lines").value}'>
-    Refresh Logs
-</button>
-
-<div id="log-output" style="margin-top: 1rem;">
-    <pre><code>{{ log_output }}</code></pre>
+<div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 1rem; gap: 1rem; flex-wrap: wrap;">
+    <h2 style="margin: 0;">Logs</h2>
+    <div style="display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap;">
+        <label style="margin: 0; display: flex; align-items: center; gap: 0.4rem; font-size: 0.85rem;">
+            <input type="checkbox" id="auto-tail" checked onchange="toggleAutoTail(this.checked)" style="margin: 0;">
+            Auto-refresh
+        </label>
+        <select id="log-filter" onchange="refreshLogs()" style="margin: 0; padding: 0.3rem 0.6rem; font-size: 0.85rem; width: auto;">
+            <option value="all">All logs</option>
+            <option value="downloads" selected>Downloads &amp; errors</option>
+            <option value="errors">Errors only</option>
+        </select>
+        <label style="margin: 0; display: flex; align-items: center; gap: 0.4rem; font-size: 0.85rem;">
+            Lines:
+            <input type="number" id="log-lines" value="200" min="10" max="2000" step="50"
+                   onchange="refreshLogs()"
+                   style="margin: 0; padding: 0.3rem 0.5rem; width: 5rem; font-size: 0.85rem;">
+        </label>
+        <button onclick="refreshLogs()" style="margin: 0; padding: 0.3rem 0.75rem; font-size: 0.85rem;">Refresh</button>
+    </div>
 </div>
+
+<div id="log-output"
+     style="background: var(--pico-card-background-color); border: 1px solid var(--pico-muted-border-color); border-radius: 6px; padding: 0.75rem; max-height: 70vh; overflow-y: auto; font-size: 0.8rem; font-family: monospace;">
+    <em style="color: var(--pico-muted-color);">Loading logs...</em>
+</div>
+
+<script>
+let _tailTimer = null;
+
+function refreshLogs() {
+    const lines = document.getElementById('log-lines').value || 200;
+    const filter = document.getElementById('log-filter').value;
+    htmx.ajax('GET', `/logs/fetch?lines=${lines}&filter=${filter}`, {
+        target: '#log-output',
+        swap: 'innerHTML',
+    }).then(() => {
+        const box = document.getElementById('log-output');
+        box.scrollTop = box.scrollHeight;
+    });
+}
+
+function toggleAutoTail(enabled) {
+    clearInterval(_tailTimer);
+    if (enabled) {
+        _tailTimer = setInterval(refreshLogs, 3000);
+    }
+}
+
+refreshLogs();
+_tailTimer = setInterval(refreshLogs, 3000);
+</script>
 {% endblock %}

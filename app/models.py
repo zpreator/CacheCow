@@ -52,6 +52,8 @@ class Settings(Base):
     items: Mapped[int] = mapped_column(default=5)
     remove_old_files: Mapped[bool] = mapped_column(default=True)
     clean_threshold: Mapped[int] = mapped_column(default=90)
+    # Overrides APP_PASS_HASH env var when set
+    password_hash: Mapped[Optional[str]] = mapped_column(String(128), nullable=True)
 
 
 class DownloadLog(Base):
@@ -70,6 +72,15 @@ class DownloadLog(Base):
 
 def ensure_defaults(db):
     """Create default tag and settings row if they don't exist."""
+    from sqlalchemy import text
+
+    # Run schema migrations BEFORE any ORM queries that touch those columns
+    try:
+        db.execute(text("ALTER TABLE settings ADD COLUMN password_hash VARCHAR(128)"))
+        db.commit()
+    except Exception:
+        pass  # Column already exists
+
     if not db.query(Tag).filter(Tag.name == "other").first():
         db.add(Tag(name="other"))
         db.commit()

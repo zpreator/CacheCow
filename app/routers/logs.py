@@ -1,6 +1,7 @@
+import html
 import subprocess
 
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, Query, Request
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 
@@ -9,20 +10,8 @@ templates = Jinja2Templates(directory="app/templates")
 
 CONTAINER_NAME = "cachecow-web-1"
 
-
-@router.get("", response_class=HTMLResponse)
-async def logs_page(request: Request):
-    return templates.TemplateResponse("logs/index.html", {
-        "request": request,
-        "active_page": "logs",
-        "lines": 100,
-        "log_output": _get_logs(100),
-    })
-
-
-@router.get("/fetch", response_class=HTMLResponse)
-async def fetch_logs(request: Request, lines: int = 100):
-    return HTMLResponse(f"<pre><code>{_get_logs(lines)}</code></pre>")
+# Log line prefixes we always want to show
+_IMPORTANT_PREFIXES = ("[DOWNLOAD]", "[ERROR]", "[WARNING]", "Error", "Traceback")
 
 
 def _get_logs(lines: int) -> str:
@@ -39,3 +28,33 @@ def _get_logs(lines: int) -> str:
         return "Timed out fetching logs."
     except Exception as e:
         return f"Error fetching logs: {e}"
+
+
+def _filter_logs(raw: str, mode: str) -> str:
+    """Filter log lines based on mode: 'all', 'downloads', or 'errors'."""
+    if mode == "all":
+        return raw
+    lines = raw.splitlines()
+    filtered = []
+    for line in lines:
+        if mode == "downloads" and ("[DOWNLOAD]" in line or "[ERROR]" in line or "[WARNING]" in line):
+            filtered.append(line)
+        elif mode == "errors" and ("[ERROR]" in line or "Error" in line or "Traceback" in line or "[WARNING]" in line):
+            filtered.append(line)
+    return "\n".join(filtered) if filtered else "(No matching log entries)"
+
+
+@router.get("", response_class=HTMLResponse)
+async def logs_page(request: Request):
+    return templates.TemplateResponse("logs/index.html", {
+        "request": request,
+        "active_page": "logs",
+    })
+
+
+@router.get("/fetch", response_class=HTMLResponse)
+async def fetch_logs(lines: int = 200, filter: str = Query("all")):
+    raw = _get_logs(lines)
+    filtered = _filter_logs(raw, filter)
+    escaped = html.escape(filtered)
+    return HTMLResponse(f"<pre style='margin:0;white-space:pre-wrap;word-break:break-all;'><code>{escaped}</code></pre>")
