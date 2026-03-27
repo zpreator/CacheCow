@@ -1,23 +1,43 @@
+{% from "_macros.html" import platform_badge %}
+
 <div class="channel-card">
-    {% if channel.image %}
-    <img src="{{ channel.image }}" alt="{{ channel.name }}">
-    {% else %}
-    <div class="placeholder-img">
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M12 12c2.7 0 4.8-2.1 4.8-4.8S14.7 2.4 12 2.4 7.2 4.5 7.2 7.2 9.3 12 12 12zm0 2.4c-3.2 0-9.6 1.6-9.6 4.8v2.4h19.2v-2.4c0-3.2-6.4-4.8-9.6-4.8z"/></svg>
+    <div class="channel-avatar-wrapper">
+        {% if channel.image %}
+        <img src="{{ channel.image }}" alt="{{ channel.name }}">
+        {% else %}
+        <div class="placeholder-img">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M12 12c2.7 0 4.8-2.1 4.8-4.8S14.7 2.4 12 2.4 7.2 4.5 7.2 7.2 9.3 12 12 12zm0 2.4c-3.2 0-9.6 1.6-9.6 4.8v2.4h19.2v-2.4c0-3.2-6.4-4.8-9.6-4.8z"/></svg>
+        </div>
+        {% endif %}
     </div>
-    {% endif %}
+
     <div class="channel-info">
-        <h4>{{ channel.name }}</h4>
+        <div style="display:flex;align-items:center;gap:0.4rem;margin-bottom:0.25rem;">
+            {{ platform_badge(channel.link) }}
+            <h4 style="margin:0;">{{ channel.name }}</h4>
+        </div>
         <small>{{ channel.tag.name }}
             {% if channel.use_global_settings %} &middot; Global settings{% endif %}
             {% if channel.download_all %} &middot; Download all{% endif %}
         </small>
+        {% if channel_stats is defined and channel_stats[channel.id] is defined %}
+        {% set stats = channel_stats[channel.id] %}
+        <div style="display:flex;gap:1rem;margin-top:0.35rem;font-size:0.78rem;color:var(--pico-muted-color);flex-wrap:wrap;">
+            <span>{{ stats.total }} video{{ "s" if stats.total != 1 else "" }}</span>
+            <span>{{ stats.recent }} last 7d</span>
+            {% if stats.last_at %}
+            <span>Last: {{ (stats.last_at|localtime).strftime("%b %d, %H:%M") }}</span>
+            {% else %}
+            <span>Last: —</span>
+            {% endif %}
+        </div>
+        {% endif %}
+        <div hx-get="/channels/{{ channel.id }}/live"
+             hx-trigger="load, every 2s"
+             hx-swap="innerHTML"></div>
     </div>
     <div class="channel-actions">
-        <button class="outline"
-                hx-get="/channels/{{ channel.id }}/edit"
-                hx-target="#channel-{{ channel.id }}"
-                hx-swap="innerHTML">Edit</button>
+        <a href="/channels/{{ channel.id }}/edit" role="button" class="outline" style="margin:0;">Edit</a>
         <button class="outline secondary"
                 hx-post="/downloads/channel/{{ channel.id }}"
                 hx-swap="none">Download Now</button>

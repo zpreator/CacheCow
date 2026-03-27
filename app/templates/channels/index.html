@@ -1,37 +1,117 @@
 {% extends "base.html" %}
 
 {% block content %}
-<h2>Subscriptions</h2>
+<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem;">
+    <div style="display:flex;align-items:baseline;gap:1rem;">
+        <h2 style="margin:0;">Channels</h2>
+        <span id="next-run-countdown" style="font-size:0.82rem;color:var(--pico-muted-color);"
+              hx-get="/downloads/next-run" hx-trigger="load, every 30s"
+              hx-swap="none"
+              hx-on::after-request="initCountdown(event)"></span>
+    </div>
+    <a href="/channels/add" role="button" style="margin:0;padding:0.4rem 0.9rem;font-size:0.85rem;">+ Add Channel</a>
+</div>
 
-<details>
-    <summary>How Subscriptions Work</summary>
-    <p>These are app-specific subscriptions, separate from your YouTube account.
-    Add channels by URL and CacheCow will periodically download new videos from them.</p>
-</details>
+<!-- Search & filters -->
+<div style="display:flex;gap:0.5rem;margin-bottom:1.25rem;flex-wrap:wrap;">
+    <input type="search" id="channel-search" placeholder="Search channels..."
+           oninput="filterChannels()"
+           style="flex:1;min-width:180px;margin:0;">
+    {% if platforms | length > 1 %}
+    <select id="platform-filter" onchange="filterChannels()" style="width:auto;margin:0;">
+        <option value="">All platforms</option>
+        {% for p in platforms %}
+        <option value="{{ p }}">{{ p | capitalize }}</option>
+        {% endfor %}
+    </select>
+    {% endif %}
+    {% if tags %}
+    <select id="tag-filter" onchange="filterChannels()" style="width:auto;margin:0;">
+        <option value="">All tags</option>
+        {% for tag in tags %}
+        <option value="{{ tag.id }}">{{ tag.name }}</option>
+        {% endfor %}
+    </select>
+    {% endif %}
+</div>
 
-<details>
-    <summary>Why Limit Downloads?</summary>
-    <p>Download limits help manage disk space. By default, only recent videos within a
-    certain number of days and up to a maximum count are downloaded.</p>
-</details>
-
-{% if subscribed %}
-<h3>Subscribed ({{ subscribed|length }})</h3>
-{% for channel in subscribed %}
-<div id="channel-{{ channel.id }}">
+{% macro channel_wrapper(channel) %}
+{% set platform = detect_platform(channel.link) %}
+<div id="channel-{{ channel.id }}"
+     data-name="{{ channel.name | lower }}"
+     data-platform="{{ platform }}"
+     data-tag-id="{{ channel.tag_id }}">
     {% include "channels/_card.html" %}
 </div>
-{% endfor %}
+{% endmacro %}
+
+{% if subscribed %}
+<section id="section-subscribed">
+    <h3>Subscribed (<span id="count-subscribed">{{ subscribed|length }}</span>)</h3>
+    {% for channel in subscribed %}{{ channel_wrapper(channel) }}{% endfor %}
+    <p id="empty-subscribed" style="display:none;color:var(--pico-muted-color);">No subscribed channels match your filters.</p>
+</section>
 {% else %}
 <p>No subscribed channels yet. <a href="/channels/add">Add one</a>.</p>
 {% endif %}
 
 {% if unsubscribed %}
-<h3>Not Subscribed ({{ unsubscribed|length }})</h3>
-{% for channel in unsubscribed %}
-<div id="channel-{{ channel.id }}">
-    {% include "channels/_card.html" %}
-</div>
-{% endfor %}
+<section id="section-unsubscribed">
+    <h3>Not Subscribed (<span id="count-unsubscribed">{{ unsubscribed|length }}</span>)</h3>
+    {% for channel in unsubscribed %}{{ channel_wrapper(channel) }}{% endfor %}
+    <p id="empty-unsubscribed" style="display:none;color:var(--pico-muted-color);">No channels match your filters.</p>
+</section>
 {% endif %}
+
+<script>
+var _countdownInterval;
+function initCountdown(evt) {
+    var text = evt.detail.xhr.responseText.trim();
+    var el = document.getElementById('next-run-countdown');
+    if (!el) return;
+    clearInterval(_countdownInterval);
+    if (text === 'running') { el.textContent = 'Currently running'; return; }
+    var secs = parseInt(text, 10);
+    if (isNaN(secs) || secs < 0) { el.textContent = ''; return; }
+    function render() {
+        if (secs <= 0) { el.textContent = 'Next run: now'; return; }
+        var h = Math.floor(secs / 3600);
+        var m = Math.floor((secs % 3600) / 60);
+        var s = secs % 60;
+        var parts = [];
+        if (h > 0) parts.push(h + 'h');
+        if (m > 0 || h > 0) parts.push(m + 'm');
+        parts.push(s + 's');
+        el.textContent = 'Next run: ' + parts.join(' ');
+        secs--;
+    }
+    render();
+    _countdownInterval = setInterval(render, 1000);
+}
+
+function filterChannels() {
+    const query = (document.getElementById('channel-search')?.value || '').toLowerCase().trim();
+    const platform = document.getElementById('platform-filter')?.value || '';
+    const tagId = document.getElementById('tag-filter')?.value || '';
+
+    ['subscribed', 'unsubscribed'].forEach(function(section) {
+        const sec = document.getElementById('section-' + section);
+        if (!sec) return;
+        const cards = sec.querySelectorAll('[data-name]');
+        let visible = 0;
+        cards.forEach(function(card) {
+            const matchName = !query || card.dataset.name.includes(query);
+            const matchPlatform = !platform || card.dataset.platform === platform;
+            const matchTag = !tagId || card.dataset.tagId === tagId;
+            const show = matchName && matchPlatform && matchTag;
+            card.style.display = show ? '' : 'none';
+            if (show) visible++;
+        });
+        const countEl = document.getElementById('count-' + section);
+        if (countEl) countEl.textContent = visible;
+        const emptyEl = document.getElementById('empty-' + section);
+        if (emptyEl) emptyEl.style.display = visible === 0 && cards.length > 0 ? '' : 'none';
+    });
+}
+</script>
 {% endblock %}

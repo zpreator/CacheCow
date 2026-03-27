@@ -1,20 +1,18 @@
 from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import HTMLResponse, JSONResponse
-from fastapi.templating import Jinja2Templates
+from app.templating import templates
 from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.models import Tag
 
 router = APIRouter(prefix="/tags")
-templates = Jinja2Templates(directory="app/templates")
 
 
 @router.get("", response_class=HTMLResponse)
 async def list_tags(request: Request, db: Session = Depends(get_db)):
     tags = db.query(Tag).order_by(Tag.name).all()
-    return templates.TemplateResponse("tags/index.html", {
-        "request": request,
+    return templates.TemplateResponse(request, "tags/index.html", {
         "tags": tags,
         "active_page": "tags",
     })
@@ -27,8 +25,7 @@ async def create_tag(request: Request, db: Session = Depends(get_db), name: str 
         db.add(Tag(name=name))
         db.commit()
     tags = db.query(Tag).order_by(Tag.name).all()
-    return templates.TemplateResponse("tags/_tag_list.html", {
-        "request": request,
+    return templates.TemplateResponse(request, "tags/_tag_list.html", {
         "tags": tags,
     })
 
@@ -59,7 +56,6 @@ async def delete_tag(request: Request, tag_id: int, db: Session = Depends(get_db
         db.delete(tag)
         db.commit()
     tags = db.query(Tag).order_by(Tag.name).all()
-    return templates.TemplateResponse("tags/_tag_list.html", {
-        "request": request,
+    return templates.TemplateResponse(request, "tags/_tag_list.html", {
         "tags": tags,
     })

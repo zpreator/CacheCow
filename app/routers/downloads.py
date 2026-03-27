@@ -1,10 +1,11 @@
 import json
 import os
+from datetime import datetime, timezone
 
 import redis as redis_lib
 from fastapi import APIRouter, Request
 from fastapi.responses import HTMLResponse
-from fastapi.templating import Jinja2Templates
+from app.templating import templates
 
 from app.celery_app import celery
 from app.tasks.download import (
@@ -15,7 +16,6 @@ from app.tasks.download import (
 )
 
 router = APIRouter(prefix="/downloads")
-templates = Jinja2Templates(directory="app/templates")
 
 
 _REDIS_URL = os.environ.get("REDIS_URL", "redis://localhost:6379/0")
@@ -36,8 +36,7 @@ def _get_progress():
 @router.get("/progress", response_class=HTMLResponse)
 async def get_progress(request: Request):
     progress = _get_progress()
-    return templates.TemplateResponse("settings/_progress.html", {
-        "request": request,
+    return templates.TemplateResponse(request, "settings/_progress.html", {
         "progress": progress,
     })
 
@@ -70,6 +69,36 @@ async def trigger_download_channel(channel_id: int):
     response = HTMLResponse("")
     response.headers["HX-Trigger"] = json.dumps({"showToast": "Channel download started"})
     return response
+
+
+@router.get("/next-run", response_class=HTMLResponse)
+async def next_run():
+    """Return seconds until the next scheduled download run, or 'running' if active."""
+    # Check if a download is currently running
+    r = _get_redis()
+    progress_raw = r.get(REDIS_PROGRESS_KEY)
+    if progress_raw:
+        import json as _json
+        progress = _json.loads(progress_raw)
+        if progress.get("status") == "running":
+            return HTMLResponse("running")
+
+    try:
+        from redbeat import RedBeatSchedulerEntry
+        entry = RedBeatSchedulerEntry.from_key(
+            "redbeat:scheduled-download", app=celery
+        )
+        due_at = entry.due_at  # datetime (UTC)
+        now = datetime.now(timezone.utc)
+        remaining = int((due_at - now).total_seconds())
+        if remaining <= 0:
+            # due_at is in the past — compute next fire from interval
+            interval_secs = int(entry.schedule.run_every.total_seconds())
+            elapsed = int((now - due_at).total_seconds())
+            remaining = interval_secs - (elapsed % interval_secs)
+    except Exception:
+        remaining = -1  # unknown
+    return HTMLResponse(str(remaining))
 
 
 @router.post("/stop", response_class=HTMLResponse)

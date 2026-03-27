@@ -33,15 +33,15 @@
 <p class="error">{{ error }}</p>
 {% endif %}
 
-<form method="post" action="/channels">
+<form method="post" action="/channels" id="add-channel-form">
     <label>
         Channel/Playlist URL <span aria-label="required">*</span>
         <input type="url" name="link" id="url-input" required
                placeholder="Paste a YouTube, TikTok, or other URL..."
-               oninput="debounceLookup(this.value)">
+               oninput="debounceLookup(this.value)"
+               value="{{ prefill_url or '' }}">
+        <small id="url-status"></small>
     </label>
-
-    <div id="lookup-status" style="margin-bottom: 1rem;"></div>
 
     <div id="channel-preview" style="display: none; margin-bottom: 1rem;" class="channel-card">
         <div class="image-edit-wrapper" style="position:relative;display:inline-block;width:48px;height:48px;min-width:48px;max-width:48px;flex-shrink:0;overflow:visible;cursor:pointer" onclick="toggleImagePopover(this)">
@@ -70,9 +70,21 @@
         </div>
     </div>
 
+    <!-- Subscription target (populated after URL lookup) -->
+    <div id="tabs-section" style="display:none;margin-bottom:1rem;">
+        <label>Subscribe to</label>
+        <div id="tabs-loading" style="display:none;">
+            <small aria-busy="true">Loading available playlists...</small>
+        </div>
+        <select id="tabs-select" style="display:none;max-height:200px;" onchange="updateLinkFromTabs()">
+        </select>
+    </div>
+
     <label>
         Channel Name <span aria-label="required">*</span>
-        <input type="text" name="name" id="name-input" required placeholder="Auto-filled from URL">
+        <input type="text" name="name" id="name-input" required placeholder="Auto-filled from URL"
+               oninput="debounceNameCheck(this.value)">
+        <small id="name-status"></small>
     </label>
 
     <div class="tag-select-wrapper">
@@ -91,6 +103,7 @@
     </div>
 
     <input type="hidden" name="image" id="image-input">
+    <input type="hidden" name="youtube_channel_id" id="youtube-channel-id-input">
 
     <div class="checkbox-row">
         <label>
@@ -263,10 +276,22 @@ document.addEventListener('click', function(e) {
 
 let lookupTimer = null;
 
+function nameFromUrl(url) {
+    try {
+        const skip = new Set(['reels', 'videos', 'shorts', 'playlists', 'streams', 'community']);
+        const parts = new URL(url).pathname.split('/').filter(p => p && !skip.has(p));
+        return parts.length ? parts[0].replace(/^@/, '') : '';
+    } catch(e) { return ''; }
+}
+
 function debounceLookup(url) {
     clearTimeout(lookupTimer);
+    const input = document.getElementById("url-input");
+    const status = document.getElementById("url-status");
+    input.removeAttribute('aria-invalid');
+    status.innerHTML = '';
     if (!url || url.length < 10) return;
-    document.getElementById("lookup-status").innerHTML = '<small aria-busy="true">Looking up channel info...</small>';
+    status.innerHTML = '<span aria-busy="true">Looking up channel info...</span>';
     lookupTimer = setTimeout(() => lookupUrl(url), 800);
 }
 
@@ -289,20 +314,89 @@ function showPreview(name, image) {
 }
 
 async function lookupUrl(url) {
+    const urlInput = document.getElementById("url-input");
+    const urlStatus = document.getElementById("url-status");
     try {
         const resp = await fetch("/channels/lookup?url=" + encodeURIComponent(url));
         const data = await resp.json();
-        document.getElementById("lookup-status").innerHTML = "";
+
+        if (data.error === "unsupported") {
+            urlInput.setAttribute('aria-invalid', 'true');
+            urlStatus.innerHTML = '<span style="color:#f44336">&#9888; URL not supported by yt-dlp. Try a different format (e.g. remove <code>/reels/</code> from Instagram URLs).</span>';
+            return;
+        }
+
+        const isYouTube = /youtube\.com|youtu\.be/i.test(data.url || url);
+        const resolvedUrl = data.url || url;
 
         if (data.name) {
+            urlInput.setAttribute('aria-invalid', 'false');
+            urlStatus.innerHTML = '<span style="color:#4caf50">&#10003; URL recognized</span>';
             document.getElementById("name-input").value = data.name;
             document.getElementById("image-input").value = data.image || "";
+            document.getElementById("youtube-channel-id-input").value = data.channel_id || "";
             showPreview(data.name, data.image);
         } else {
-            document.getElementById("lookup-status").innerHTML = '<small>Could not auto-detect channel info. Fill in manually.</small>';
+            // Supported but no metadata — use URL text as name fallback for non-YouTube
+            urlInput.setAttribute('aria-invalid', 'false');
+            urlStatus.innerHTML = '<span style="color:#4caf50">&#10003; URL recognized</span>';
+            if (!isYouTube) {
+                const fallbackName = nameFromUrl(url);
+                if (fallbackName && !document.getElementById("name-input").value) {
+                    document.getElementById("name-input").value = fallbackName;
+                    showPreview(fallbackName, "");
+                }
+            }
+        }
+
+        if (isYouTube) {
+            fetchTabs(resolvedUrl);
+        } else {
+            document.getElementById("tabs-section").style.display = "none";
         }
     } catch (e) {
-        document.getElementById("lookup-status").innerHTML = '<small>Lookup failed. Fill in manually.</small>';
+        urlInput.removeAttribute('aria-invalid');
+        urlStatus.innerHTML = '<span>Lookup failed. Fill in manually.</span>';
+    }
+}
+
+async function fetchTabs(url) {
+    var section = document.getElementById("tabs-section");
+    var loading = document.getElementById("tabs-loading");
+    var select = document.getElementById("tabs-select");
+    section.style.display = "block";
+    loading.style.display = "block";
+    select.style.display = "none";
+    select.innerHTML = "";
+    try {
+        var resp = await fetch("/channels/tabs?url=" + encodeURIComponent(url));
+        var tabs = await resp.json();
+        loading.style.display = "none";
+        if (!tabs.length) {
+            section.style.display = "none";
+            return;
+        }
+        tabs.forEach(function(tab) {
+            var suffix = tab.type === "playlist" ? " (playlist)" : "";
+            var opt = document.createElement("option");
+            opt.value = tab.url;
+            opt.textContent = tab.label + suffix;
+            select.appendChild(opt);
+        });
+        select.style.display = "";
+        // Default to "All Videos"
+        select.value = tabs[0].url;
+        updateLinkFromTabs();
+    } catch(e) {
+        loading.style.display = "none";
+        section.style.display = "none";
+    }
+}
+
+function updateLinkFromTabs() {
+    var select = document.getElementById("tabs-select");
+    if (select && select.value) {
+        document.getElementById("url-input").value = select.value;
     }
 }
 
@@ -310,6 +404,7 @@ function fillFromResult(name, url, image) {
     document.getElementById("url-input").value = url;
     document.getElementById("name-input").value = name;
     document.getElementById("image-input").value = image;
+    document.getElementById("youtube-channel-id-input").value = "";
     document.getElementById("search-results").innerHTML = "";
     document.getElementById("search-input").value = "";
 
@@ -322,5 +417,52 @@ function fillFromResult(name, url, image) {
     // Scroll to the form
     document.getElementById("url-input").scrollIntoView({ behavior: "smooth" });
 }
+
+let nameCheckTimer = null;
+
+function debounceNameCheck(name) {
+    clearTimeout(nameCheckTimer);
+    const status = document.getElementById("name-status");
+    const input = document.getElementById("name-input");
+    if (!name.trim()) {
+        status.innerHTML = '';
+        input.removeAttribute('aria-invalid');
+        updateSubmitState();
+        return;
+    }
+    nameCheckTimer = setTimeout(() => checkNameExists(name), 400);
+}
+
+async function checkNameExists(name) {
+    const status = document.getElementById("name-status");
+    const input = document.getElementById("name-input");
+    try {
+        const resp = await fetch("/channels/check-name?name=" + encodeURIComponent(name));
+        const data = await resp.json();
+        if (data.exists) {
+            input.setAttribute('aria-invalid', 'true');
+            status.innerHTML = '<span style="color:#f44336">&#9888; A channel with this name already exists.</span>';
+        } else {
+            input.removeAttribute('aria-invalid');
+            status.innerHTML = '';
+        }
+    } catch (e) {}
+    updateSubmitState();
+}
+
+function updateSubmitState() {
+    const input = document.getElementById("name-input");
+    const btn = document.querySelector('#add-channel-form button[type="submit"]');
+    const invalid = input.getAttribute('aria-invalid') === 'true';
+    btn.disabled = invalid;
+    btn.style.opacity = invalid ? '0.5' : '';
+    btn.style.cursor = invalid ? 'not-allowed' : '';
+}
+
+// Auto-lookup if URL was pre-filled (e.g. from Discover Subscribe button)
+(function() {
+    var url = document.getElementById('url-input').value;
+    if (url && url.length >= 10) lookupUrl(url);
+})();
 </script>
 {% endblock %}

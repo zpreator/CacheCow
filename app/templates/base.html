@@ -15,12 +15,11 @@
                 <h2>CacheCow</h2>
             </header>
             <ul>
-                <li><a href="/" {% if active_page == "home" %}class="active"{% endif %}>Dashboard</a></li>
-                <li><a href="/channels" {% if active_page == "channels" %}class="active"{% endif %}>Subscriptions</a></li>
-                <li><a href="/channels/add" {% if active_page == "add_channel" %}class="active"{% endif %}>Add Channel</a></li>
-                <li><a href="/tags" {% if active_page == "tags" %}class="active"{% endif %}>Manage Tags</a></li>
+                <li><a href="/" {% if active_page == "library" %}class="active"{% endif %}>Library</a></li>
+                <li><a href="/discover" {% if active_page == "discover" %}class="active"{% endif %}>Discover</a></li>
+                <li><a href="/queue" {% if active_page == "queue" %}class="active"{% endif %}>Queue</a></li>
+                <li><a href="/channels" {% if active_page == "channels" %}class="active"{% endif %}>Channels</a></li>
                 <li><a href="/settings" {% if active_page == "settings" %}class="active"{% endif %}>Settings</a></li>
-                <li><a href="/history" {% if active_page == "history" %}class="active"{% endif %}>History</a></li>
                 <li><a href="/logs" {% if active_page == "logs" %}class="active"{% endif %}>Logs</a></li>
             </ul>
             <footer>
@@ -35,18 +34,31 @@
         </main>
     </div>
     <script>
-        document.body.addEventListener("showToast", function(evt) {
-            const container = document.getElementById("toast-container");
-            const toast = document.createElement("div");
-            toast.className = "toast";
-            toast.textContent = evt.detail.value || evt.detail;
-            container.appendChild(toast);
-            setTimeout(() => { toast.classList.add("show"); }, 10);
-            setTimeout(() => {
-                toast.classList.remove("show");
-                setTimeout(() => toast.remove(), 300);
-            }, 3000);
-        });
+        /* Stop any playing video/audio before HTMX swaps page content */
+        if (!window._videoCleanupReady) {
+            window._videoCleanupReady = true;
+            document.body.addEventListener("htmx:beforeSwap", function() {
+                var v = document.querySelector('video');
+                if (v) { v.pause(); v.removeAttribute('src'); v.load(); }
+                var a = document.querySelector('audio');
+                if (a) { a.pause(); a.removeAttribute('src'); a.load(); }
+            });
+        }
+        if (!window._toastReady) {
+            window._toastReady = true;
+            document.body.addEventListener("showToast", function(evt) {
+                const container = document.getElementById("toast-container");
+                const toast = document.createElement("div");
+                toast.className = "toast";
+                toast.textContent = evt.detail.value || evt.detail;
+                container.appendChild(toast);
+                setTimeout(() => { toast.classList.add("show"); }, 10);
+                setTimeout(() => {
+                    toast.classList.remove("show");
+                    setTimeout(() => toast.remove(), 300);
+                }, 3000);
+            });
+        }
     </script>
 </body>
 </html>

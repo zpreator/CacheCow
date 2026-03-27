@@ -3,16 +3,6 @@
 {% block content %}
 <h2>Settings</h2>
 
-<!-- Download Status -->
-<div class="settings-section">
-    <h3>Download Status</h3>
-    <div hx-get="/downloads/progress"
-         hx-trigger="load, every 2s"
-         hx-swap="innerHTML">
-        {% include "settings/_progress.html" %}
-    </div>
-</div>
-
 <!-- Global Settings -->
 <div class="settings-section">
     <h3>Global Settings</h3>
@@ -85,6 +75,21 @@
         </div>
         <button type="submit">Save Cleaning Settings</button>
     </form>
+</div>
+
+<!-- Tags -->
+<div class="settings-section">
+    <h3>Tags</h3>
+    <p style="font-size:0.85rem;color:var(--pico-muted-color);">Tags organize downloads into folders: <code>{download_path}/{tag}/{uploader}/</code>. The "other" tag is the default and cannot be deleted.</p>
+    <form hx-post="/tags" hx-target="#tag-list" hx-swap="outerHTML" style="margin-bottom:1rem;">
+        <fieldset role="group">
+            <input type="text" name="name" placeholder="New tag name" required>
+            <button type="submit">Add Tag</button>
+        </fieldset>
+    </form>
+    <div id="tag-list">
+        {% include "tags/_tag_list.html" %}
+    </div>
 </div>
 
 <!-- Change Password -->

@@ -13,6 +13,7 @@ services:
     environment:
       - PYTHONUNBUFFERED=1
       - REDIS_URL=redis://redis:6379/0
+      - TZ=${TZ:-UTC}
     env_file: .env
     depends_on:
       - redis
@@ -28,6 +29,7 @@ services:
       - ${DOWNLOAD_PATH}:${DOWNLOAD_PATH}
     environment:
       - REDIS_URL=redis://redis:6379/0
+      - TZ=${TZ:-UTC}
     env_file: .env
     depends_on:
       - redis
@@ -42,6 +44,7 @@ services:
       - ./data:/app/data
     environment:
       - REDIS_URL=redis://redis:6379/0
+      - TZ=${TZ:-UTC}
     env_file: .env
     depends_on:
       - redis

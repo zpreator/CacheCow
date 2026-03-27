@@ -3,14 +3,9 @@
 <div class="channel-card">
     <div class="channel-icon-lazy" data-icon-url="{{ result.channel_url | e }}"
          style="width:40px;height:40px;min-width:40px;border-radius:50%;overflow:hidden;flex-shrink:0;">
-        {% if result.image %}
-        <img src="{{ result.image }}" alt="{{ result.name }}"
-             style="width:40px;height:40px;border-radius:50%;object-fit:cover;">
-        {% else %}
-        <div class="placeholder-img">
+        <div class="placeholder-img" style="width:40px;height:40px;border-radius:50%;">
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M12 12c2.7 0 4.8-2.1 4.8-4.8S14.7 2.4 12 2.4 7.2 4.5 7.2 7.2 9.3 12 12 12zm0 2.4c-3.2 0-9.6 1.6-9.6 4.8v2.4h19.2v-2.4c0-3.2-6.4-4.8-9.6-4.8z"/></svg>
         </div>
-        {% endif %}
     </div>
     <div class="channel-info">
         <h4>{{ result.name }}</h4>
@@ -18,7 +13,8 @@
     </div>
     <div class="channel-actions">
         <button class="outline"
-                onclick="fillFromResult('{{ result.name | e }}', '{{ result.channel_url | e }}', '{{ result.image | e }}')">
+                data-name="{{ result.name | e }}" data-url="{{ result.channel_url | e }}" data-image=""
+                onclick="fillFromResult(this.dataset.name, this.dataset.url, this.dataset.image)">
             Add
         </button>
     </div>
@@ -34,15 +30,13 @@ document.querySelectorAll('.channel-icon-lazy').forEach(async function(wrapper) 
         if (resp.ok) {
             const html = await resp.text();
             wrapper.innerHTML = html;
-            // Update the Add button to pass the real icon URL
+            // Update the Add button's data-image with the real icon URL
             const img = wrapper.querySelector('img');
             if (img) {
                 const card = wrapper.closest('.channel-card');
                 const btn = card && card.querySelector('.channel-actions button');
                 if (btn) {
-                    const current = btn.getAttribute('onclick') || '';
-                    btn.setAttribute('onclick',
-                        current.replace(/'[^']*'\)$/, `'${img.src.replace(/'/g, "\\'")}')`));
+                    btn.dataset.image = img.src;
                 }
             }
         }

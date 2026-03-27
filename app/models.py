@@ -35,7 +35,6 @@ class Channel(Base):
     exclude_keywords: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(server_default=func.now(), onupdate=func.now())
-
     tag: Mapped["Tag"] = relationship(back_populates="channels")
 
 
@@ -44,7 +43,7 @@ class Settings(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True, default=1)
     download_path: Mapped[str] = mapped_column(String(500), default=app_settings.download_path)
-    minutes_between_runs: Mapped[int] = mapped_column(default=60)
+    minutes_between_runs: Mapped[int] = mapped_column(default=360)
     random_interval_lower: Mapped[int] = mapped_column(default=15)
     random_interval_upper: Mapped[int] = mapped_column(default=45)
     max_duration: Mapped[int] = mapped_column(default=60)
@@ -60,30 +59,58 @@ class DownloadLog(Base):
     __tablename__ = "download_log"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    channel_id: Mapped[int] = mapped_column(ForeignKey("channels.id"))
+    channel_id: Mapped[Optional[int]] = mapped_column(ForeignKey("channels.id"), nullable=True)
     started_at: Mapped[datetime] = mapped_column(server_default=func.now())
     finished_at: Mapped[Optional[datetime]] = mapped_column(nullable=True)
     status: Mapped[str] = mapped_column(String(20), default="running")
     error_message: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     videos_downloaded: Mapped[int] = mapped_column(default=0)
+    label: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
 
-    channel: Mapped["Channel"] = relationship()
+    channel: Mapped[Optional["Channel"]] = relationship()
+
+
+class Video(Base):
+    __tablename__ = "videos"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    youtube_id: Mapped[str] = mapped_column(String(100), unique=True)
+    channel_id: Mapped[Optional[int]] = mapped_column(ForeignKey("channels.id"), nullable=True)
+    title: Mapped[str] = mapped_column(String(500))
+    description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    thumbnail_url: Mapped[Optional[str]] = mapped_column(String(1000), nullable=True)
+    duration: Mapped[Optional[int]] = mapped_column(nullable=True)
+    upload_date: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
+    file_path: Mapped[Optional[str]] = mapped_column(String(2000), nullable=True)
+    file_size: Mapped[Optional[int]] = mapped_column(nullable=True)
+    uploader: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
+    downloaded_at: Mapped[datetime] = mapped_column(server_default=func.now())
+    download_log_id: Mapped[Optional[int]] = mapped_column(ForeignKey("download_log.id"), nullable=True)
+
+    channel: Mapped[Optional["Channel"]] = relationship()
+    download_log: Mapped[Optional["DownloadLog"]] = relationship()
 
 
 def ensure_defaults(db):
     """Create default tag and settings row if they don't exist."""
-    from sqlalchemy import text
-
-    # Run schema migrations BEFORE any ORM queries that touch those columns
-    try:
-        db.execute(text("ALTER TABLE settings ADD COLUMN password_hash VARCHAR(128)"))
-        db.commit()
-    except Exception:
-        pass  # Column already exists
-
     if not db.query(Tag).filter(Tag.name == "other").first():
         db.add(Tag(name="other"))
         db.commit()
     if not db.query(Settings).first():
         db.add(Settings(download_path=app_settings.download_path))
         db.commit()
+
+    # Runtime column migrations for SQLite (create_all won't add columns to existing tables)
+    _add_column_if_missing(db, "videos", "uploader", "VARCHAR(500)")
+    _add_column_if_missing(db, "videos", "download_log_id", "INTEGER")
+    _add_column_if_missing(db, "download_log", "label", "VARCHAR(500)")
+
+
+def _add_column_if_missing(db, table: str, column: str, col_type: str):
+    from sqlalchemy import text
+    result = db.execute(text(f"PRAGMA table_info({table})")).fetchall()
+    existing = {row[1] for row in result}
+    if column not in existing:
+        db.execute(text(f"ALTER TABLE {table} ADD COLUMN {column} {col_type}"))
+        db.commit()
+        print(f"[MIGRATE] Added column {table}.{column}")

@@ -4,8 +4,10 @@ jinja2
 python-multipart
 sqlalchemy
 celery[redis]
+celery-redbeat
 redis
 yt-dlp
 python-dotenv
 itsdangerous
 pydantic-settings
+python-dateutil

@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1.25rem;">
+    <h2 style="margin:0;">Discover</h2>
+</div>
+
+<!-- Search input -->
+<form id="discover-form" style="margin-bottom:1.5rem;">
+    <fieldset role="group" style="margin:0;">
+        <input id="discover-search" type="search" name="q" placeholder="Search YouTube for videos…"
+               hx-get="/discover/search"
+               hx-target="#discover-results"
+               hx-trigger="keyup[key=='Enter'], input changed delay:600ms"
+               hx-include="#discover-form"
+               autofocus>
+        <button type="submit"
+                hx-get="/discover/search"
+                hx-target="#discover-results"
+                hx-include="#discover-form">Search</button>
+    </fieldset>
+</form>
+
+<!-- One-off URL download -->
+<details style="margin-bottom:1.5rem;">
+    <summary style="cursor:pointer;font-size:0.9rem;color:var(--pico-muted-color);">Download by URL</summary>
+    <div style="margin-top:0.75rem;">
+        <p style="font-size:0.85rem;color:var(--pico-muted-color);margin-bottom:0.5rem;">
+            Paste a YouTube video URL to download it directly without subscribing to a channel.
+        </p>
+        <form hx-post="/discover/download"
+              hx-target="#url-status"
+              hx-swap="innerHTML">
+            <fieldset role="group" style="margin:0;">
+                <input type="url" name="url" placeholder="https://www.youtube.com/watch?v=…" required>
+                <button type="submit">Download</button>
+            </fieldset>
+        </form>
+        <div id="url-status" style="margin-top:0.5rem;font-size:0.85rem;"></div>
+    </div>
+</details>
+
+<!-- Results -->
+<div id="discover-results">
+    <p style="color:var(--pico-muted-color);font-size:0.9rem;">Search for videos above to see results.</p>
+</div>
+{% endblock %}

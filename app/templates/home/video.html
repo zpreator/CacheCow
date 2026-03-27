@@ -1,0 +1,130 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div style="margin-bottom:1rem;">
+    <a href="/" style="text-decoration:none;color:var(--pico-muted-color);font-size:0.85rem;">← Library</a>
+</div>
+
+{% if file_exists %}
+<video controls preload="metadata"
+       style="width:100%;max-height:70vh;background:#000;border-radius:8px;display:block;margin-bottom:1.25rem;"
+       src="/videos/{{ video.id }}/stream">
+    Your browser does not support the video element.
+</video>
+{% else %}
+<div style="width:100%;aspect-ratio:16/9;max-height:70vh;background:var(--pico-card-background-color);
+            border:1px solid var(--pico-muted-border-color);border-radius:8px;
+            display:flex;flex-direction:column;align-items:center;justify-content:center;
+            margin-bottom:1.25rem;color:var(--pico-muted-color);gap:0.5rem;">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" style="width:48px;height:48px;opacity:0.3;">
+        <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/>
+    </svg>
+    <span style="font-size:0.9rem;">File not found on disk</span>
+    {% if video.file_path %}
+    <span style="font-size:0.75rem;opacity:0.6;">{{ video.file_path }}</span>
+    {% endif %}
+</div>
+{% endif %}
+
+<!-- Title + actions -->
+<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:1rem;margin-bottom:0.75rem;flex-wrap:wrap;">
+    <h2 style="margin:0;font-size:1.2rem;line-height:1.35;flex:1;">{{ video.title }}</h2>
+    <div style="display:flex;gap:0.5rem;flex-shrink:0;">
+        {% if video.youtube_id %}
+        <a href="https://www.youtube.com/watch?v={{ video.youtube_id }}" target="_blank" rel="noopener"
+           role="button" class="outline secondary"
+           style="margin:0;padding:0.3rem 0.75rem;font-size:0.82rem;white-space:nowrap;">
+            Watch on YouTube
+        </a>
+        {% endif %}
+        <button class="outline secondary" onclick="document.getElementById('delete-dialog').showModal()"
+                style="margin:0;padding:0.3rem 0.75rem;font-size:0.82rem;white-space:nowrap;color:var(--pico-del-color);border-color:var(--pico-del-color);">
+            Delete
+        </button>
+    </div>
+</div>
+
+<!-- Delete confirmation dialog -->
+<dialog id="delete-dialog">
+    <article style="max-width:420px;">
+        <h3 style="margin-bottom:0.5rem;">Delete this video?</h3>
+        <p style="font-size:0.88rem;color:var(--pico-muted-color);margin-bottom:1.25rem;">
+            The file will be permanently removed from your disk. This cannot be undone.
+        </p>
+        <label style="display:flex;align-items:flex-start;gap:0.6rem;margin-bottom:1.5rem;cursor:pointer;">
+            <input type="checkbox" id="remove-archive-check" role="switch" style="margin-top:0.1rem;flex-shrink:0;">
+            <span style="font-size:0.88rem;">
+                <strong>Allow re-download in the future</strong><br>
+                <span style="color:var(--pico-muted-color);font-size:0.82rem;">
+                    By default, this video won't be downloaded again automatically.
+                    Check this if you want it to be picked up again on the next sync.
+                </span>
+            </span>
+        </label>
+        <div style="display:flex;gap:0.5rem;justify-content:flex-end;">
+            <button class="outline secondary" onclick="document.getElementById('delete-dialog').close()"
+                    style="margin:0;">Cancel</button>
+            <button style="margin:0;background:var(--pico-del-color);border-color:var(--pico-del-color);"
+                    onclick="confirmDelete()">Delete</button>
+        </div>
+    </article>
+</dialog>
+
+<script>
+function confirmDelete() {
+    const removeFromArchive = document.getElementById('remove-archive-check').checked;
+    htmx.ajax('DELETE', '/videos/{{ video.id }}?remove_from_archive=' + removeFromArchive, {
+        swap: 'none',
+    });
+    document.getElementById('delete-dialog').close();
+}
+</script>
+
+<!-- Channel + metadata row -->
+<div style="display:flex;align-items:center;gap:0.75rem;flex-wrap:wrap;margin-bottom:1rem;padding-bottom:1rem;border-bottom:1px solid var(--pico-muted-border-color);">
+    {% if video.channel %}
+    <div style="display:flex;align-items:center;gap:0.5rem;">
+        {% if video.channel.image %}
+        <img src="{{ video.channel.image }}" alt=""
+             style="width:28px;height:28px;border-radius:50%;object-fit:cover;">
+        {% endif %}
+        <a href="/channels" style="font-size:0.88rem;color:var(--pico-muted-color);text-decoration:none;">
+            {{ video.channel.name }}
+        </a>
+    </div>
+    <span style="color:var(--pico-muted-border-color);">·</span>
+    {% elif video.uploader %}
+    <span style="font-size:0.88rem;color:var(--pico-muted-color);">{{ video.uploader }}</span>
+    <span style="color:var(--pico-muted-border-color);">·</span>
+    {% endif %}
+    {% if video.duration %}
+    {% set mins = (video.duration // 60) %}
+    {% set secs = (video.duration % 60) %}
+    <span style="font-size:0.85rem;color:var(--pico-muted-color);">{{ "%d:%02d"|format(mins, secs) }}</span>
+    <span style="color:var(--pico-muted-border-color);">·</span>
+    {% endif %}
+    {% if video.upload_date and video.upload_date|length == 8 %}
+    <span style="font-size:0.85rem;color:var(--pico-muted-color);">
+        Uploaded {{ video.upload_date[:4] }}-{{ video.upload_date[4:6] }}-{{ video.upload_date[6:] }}
+    </span>
+    <span style="color:var(--pico-muted-border-color);">·</span>
+    {% endif %}
+    <span style="font-size:0.85rem;color:var(--pico-muted-color);">
+        Downloaded {{ (video.downloaded_at|localtime).strftime("%b %d, %Y") if video.downloaded_at else "—" }}
+    </span>
+    {% if video.file_size %}
+    <span style="color:var(--pico-muted-border-color);">·</span>
+    <span style="font-size:0.85rem;color:var(--pico-muted-color);">
+        {{ "%.1f"|format(video.file_size / (1024**3)) }} GB
+    </span>
+    {% endif %}
+</div>
+
+<!-- Description -->
+{% if video.description %}
+<details>
+    <summary style="font-size:0.88rem;cursor:pointer;color:var(--pico-muted-color);">Description</summary>
+    <div style="font-size:0.85rem;line-height:1.6;margin-top:0.5rem;white-space:pre-wrap;color:var(--pico-muted-color);">{{ video.description }}</div>
+</details>
+{% endif %}
+{% endblock %}

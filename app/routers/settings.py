@@ -2,16 +2,15 @@ import json
 
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import HTMLResponse
-from fastapi.templating import Jinja2Templates
+from app.templating import templates
 from sqlalchemy.orm import Session
 
 from app.auth import hash_password, verify_password
 from app.config import settings as app_settings
 from app.database import get_db
-from app.models import Settings
+from app.models import Settings, Tag
 
 router = APIRouter(prefix="/settings")
-templates = Jinja2Templates(directory="app/templates")
 
 
 def _get_settings(db: Session) -> Settings:
@@ -26,9 +25,10 @@ def _get_settings(db: Session) -> Settings:
 @router.get("", response_class=HTMLResponse)
 async def settings_page(request: Request, db: Session = Depends(get_db)):
     s = _get_settings(db)
-    return templates.TemplateResponse("settings/index.html", {
-        "request": request,
+    tags = db.query(Tag).order_by(Tag.name).all()
+    return templates.TemplateResponse(request, "settings/index.html", {
         "settings": s,
+        "tags": tags,
         "active_page": "settings",
     })
 
@@ -46,6 +46,9 @@ async def update_global_settings(request: Request, db: Session = Depends(get_db)
     s.items = int(form.get("items", 5))
 
     db.commit()
+
+    from app.celery_app import update_download_schedule
+    update_download_schedule(s.minutes_between_runs)
 
     response = HTMLResponse("")
     response.headers["HX-Trigger"] = json.dumps({"showToast": "Global settings saved"})

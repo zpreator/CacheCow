@@ -1,0 +1,149 @@
+{% set phase = live.progress.get("phase", "checking") if live.progress else "checking" %}
+{% if live.is_running and live.current_video and phase == "downloading" %}
+<!-- Active download tile -->
+<div class="queue-tile queue-tile--downloading" style="margin-bottom:0.75rem;">
+    <div class="queue-tile__thumb">
+        {% if live.current_video.thumbnail %}
+        <img src="{{ live.current_video.thumbnail }}" alt="" loading="lazy">
+        {% else %}
+        <div class="queue-tile__thumb-placeholder">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+        </div>
+        {% endif %}
+    </div>
+    <div class="queue-tile__body">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:0.5rem;margin-bottom:0.3rem;">
+            <span class="queue-status-badge queue-status-badge--downloading">
+                <span class="queue-pulse"></span> Downloading
+            </span>
+            {% if live.progress and live.progress.total %}
+            <span style="font-size:0.75rem;color:var(--pico-muted-color);">
+                Channel {{ live.progress.index + 1 }}/{{ live.progress.total }}
+            </span>
+            {% endif %}
+            <form hx-post="/downloads/stop" hx-swap="none" style="margin:0;">
+                <button type="submit" class="outline secondary" style="padding:0.15rem 0.5rem;font-size:0.75rem;margin:0;">Stop</button>
+            </form>
+        </div>
+        <div style="font-size:0.9rem;font-weight:600;margin-bottom:0.15rem;
+                    display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;">
+            {{ live.current_video.title }}
+        </div>
+        {% if live.current_video.uploader %}
+        <div style="font-size:0.78rem;color:var(--pico-muted-color);margin-bottom:0.5rem;">
+            {{ live.current_video.uploader }}
+        </div>
+        {% endif %}
+        <div style="display:flex;align-items:center;gap:0.75rem;">
+            <div class="progress-bar" style="flex:1;">
+                <div class="progress-fill" style="width:{{ live.current_video.percent }}%;"></div>
+            </div>
+            <span style="font-size:0.78rem;color:var(--pico-muted-color);white-space:nowrap;flex-shrink:0;min-width:3.5rem;text-align:right;">
+                {{ live.current_video.percent }}%
+                {% if live.current_video.speed %}<br><span style="font-size:0.72rem;">{{ live.current_video.speed }}</span>{% endif %}
+            </span>
+        </div>
+    </div>
+</div>
+{% elif live.is_running %}
+<!-- Running but not actively downloading a video (checking / finishing / starting) -->
+<div class="queue-tile queue-tile--downloading" style="margin-bottom:0.75rem;">
+    <div class="queue-tile__thumb">
+        <div class="queue-tile__thumb-placeholder">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+        </div>
+    </div>
+    <div class="queue-tile__body">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:0.5rem;margin-bottom:0.4rem;">
+            <span class="queue-status-badge queue-status-badge--downloading">
+                <span class="queue-pulse"></span>
+                {% if phase == "sleeping" %}
+                    Sleeping for {{ live.progress.get("sleep_seconds", "?") }}s
+                {% elif phase == "finishing" %}
+                    Finishing up
+                {% elif phase == "downloading" %}
+                    Downloading
+                {% else %}
+                    Checking for downloads
+                {% endif %}
+            </span>
+            <form hx-post="/downloads/stop" hx-swap="none" style="margin:0;">
+                <button type="submit" class="outline secondary" style="padding:0.15rem 0.5rem;font-size:0.75rem;margin:0;">Stop</button>
+            </form>
+        </div>
+        <div style="font-size:0.88rem;color:var(--pico-muted-color);">
+            {% if live.progress and live.progress.name %}
+                {{ live.progress.name }}
+                {% if live.progress.total %} ({{ live.progress.index + 1 }}/{{ live.progress.total }}){% endif %}
+            {% else %}
+                Starting…
+            {% endif %}
+        </div>
+        <div class="progress-bar" style="margin-top:0.5rem;">
+            <div class="progress-fill progress-fill--indeterminate"></div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- History: individual video tiles -->
+{% if videos %}
+{% for video in videos %}
+{% set log = log_cache.get(video.download_log_id) if video.download_log_id else none %}
+<a href="/videos/{{ video.id }}" style="display:block;text-decoration:none;color:inherit;">
+<div class="queue-tile queue-tile--completed" style="cursor:pointer;">
+    <div class="queue-tile__thumb">
+        {% if video.thumbnail_url %}
+        <img src="{{ video.thumbnail_url }}" alt="" loading="lazy" style="width:100%;height:100%;object-fit:cover;">
+        {% elif video.channel and video.channel.image %}
+        <img src="{{ video.channel.image }}" alt="" style="width:50px;height:50px;object-fit:cover;border-radius:50%;margin:auto;display:block;margin-top:9px;">
+        {% else %}
+        <div class="queue-tile__thumb-placeholder">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+        </div>
+        {% endif %}
+    </div>
+    <div class="queue-tile__body">
+        <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:0.4rem;margin-bottom:0.2rem;">
+            <div style="font-size:0.88rem;font-weight:600;
+                        display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;flex:1;">
+                {{ video.title }}
+            </div>
+            {% if video.channel %}
+            <a href="/channels/{{ video.channel.id }}/edit"
+               onclick="event.stopPropagation();"
+               style="font-size:0.72rem;color:var(--pico-muted-color);text-decoration:none;border:1px solid var(--pico-muted-border-color);border-radius:var(--pico-border-radius);padding:0.1rem 0.4rem;white-space:nowrap;flex-shrink:0;">
+                {{ video.channel.name }}
+            </a>
+            {% endif %}
+        </div>
+        <div style="font-size:0.78rem;color:var(--pico-muted-color);margin-bottom:0.3rem;">
+            {{ video.uploader or (video.channel.name if video.channel else "") }}
+        </div>
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:0.5rem;flex-wrap:wrap;">
+            <span style="font-size:0.72rem;color:var(--pico-muted-color);">
+                {% if log %}
+                    {% if log.channel_id %}
+                        Run · {{ (log.started_at|localtime).strftime("%b %d, %H:%M") if log.started_at else "" }}
+                    {% else %}
+                        Manual · {{ (log.started_at|localtime).strftime("%b %d, %H:%M") if log.started_at else "" }}
+                    {% endif %}
+                {% else %}
+                    Downloaded {{ (video.downloaded_at|localtime).strftime("%b %d, %H:%M") if video.downloaded_at else "" }}
+                {% endif %}
+            </span>
+            {% if video.duration %}
+            <span style="font-size:0.72rem;color:var(--pico-muted-color);white-space:nowrap;">
+                {% set mins = (video.duration // 60) %}
+                {% set secs = (video.duration % 60) %}
+                {{ "%d:%02d"|format(mins, secs) }}
+            </span>
+            {% endif %}
+        </div>
+    </div>
+</div>
+</a>
+{% endfor %}
+{% else %}
+<p style="color:var(--pico-muted-color);font-size:0.9rem;margin-top:0.5rem;">No downloads yet.</p>
+{% endif %}

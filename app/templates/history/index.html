@@ -27,8 +27,8 @@
                     <mark class="running-mark">{{ log.status }}</mark>
                 {% endif %}
             </td>
-            <td>{{ log.started_at.strftime("%Y-%m-%d %H:%M") if log.started_at else "-" }}</td>
-            <td>{{ log.finished_at.strftime("%Y-%m-%d %H:%M") if log.finished_at else "-" }}</td>
+            <td>{{ (log.started_at|localtime).strftime("%Y-%m-%d %H:%M") if log.started_at else "-" }}</td>
+            <td>{{ (log.finished_at|localtime).strftime("%Y-%m-%d %H:%M") if log.finished_at else "-" }}</td>
             <td>{{ log.error_message[:80] + "..." if log.error_message and log.error_message|length > 80 else log.error_message or "-" }}</td>
         </tr>
         {% endfor %}
