@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+
+{% block content %}
+<h2>Download History</h2>
+
+{% if logs %}
+<table>
+    <thead>
+        <tr>
+            <th>Channel</th>
+            <th>Status</th>
+            <th>Started</th>
+            <th>Finished</th>
+            <th>Error</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for log in logs %}
+        <tr>
+            <td>{{ log.channel.name if log.channel else "Unknown" }}</td>
+            <td>
+                {% if log.status == "completed" %}
+                    <mark>completed</mark>
+                {% elif log.status == "failed" %}
+                    <mark class="error-mark">failed</mark>
+                {% else %}
+                    <mark class="running-mark">{{ log.status }}</mark>
+                {% endif %}
+            </td>
+            <td>{{ (log.started_at|localtime).strftime("%Y-%m-%d %H:%M") if log.started_at else "-" }}</td>
+            <td>{{ (log.finished_at|localtime).strftime("%Y-%m-%d %H:%M") if log.finished_at else "-" }}</td>
+            <td>{{ log.error_message[:80] + "..." if log.error_message and log.error_message|length > 80 else log.error_message or "-" }}</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% else %}
+<p>No download history yet. Downloads will appear here after you run the downloader.</p>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,74 @@
+{% if videos %}
+<div class="video-grid">
+    {% for video in videos %}
+    <div class="video-tile">
+        <a href="/videos/{{ video.id }}" style="display:block;text-decoration:none;">
+            {% if video.thumbnail_url %}
+            <img src="{{ video.thumbnail_url }}" alt="{{ video.title }}" loading="lazy">
+            {% else %}
+            <div style="width:100%;aspect-ratio:16/9;background:var(--pico-muted-border-color);display:flex;align-items:center;justify-content:center;">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" style="width:40px;height:40px;opacity:0.3;">
+                    <path d="M8 5v14l11-7z"/>
+                </svg>
+            </div>
+            {% endif %}
+        </a>
+        <div class="tile-body">
+            <div style="font-size:0.85rem;font-weight:600;line-height:1.35;margin-bottom:0.3rem;
+                        display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;">
+                {{ video.title }}
+            </div>
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:0.4rem;flex-wrap:wrap;">
+                <div style="display:flex;align-items:center;gap:0.4rem;min-width:0;">
+                    {% if video.channel and video.channel.image %}
+                    <img src="{{ video.channel.image }}" alt=""
+                         style="width:18px;height:18px;border-radius:50%;object-fit:cover;flex-shrink:0;">
+                    {% endif %}
+                    <span style="font-size:0.75rem;color:var(--pico-muted-color);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
+                        {% if video.channel %}{{ video.channel.name }}{% elif video.uploader %}{{ video.uploader }}{% else %}Unknown{% endif %}
+                    </span>
+                </div>
+                <div style="display:flex;align-items:center;gap:0.35rem;flex-shrink:0;">
+                    {% if video.channel and video.channel.tag %}
+                    <span style="font-size:0.7rem;padding:0.1rem 0.4rem;background:var(--pico-primary-focus);border-radius:1rem;white-space:nowrap;">
+                        {{ video.channel.tag.name }}
+                    </span>
+                    {% endif %}
+                    {% if video.duration %}
+                    <span style="font-size:0.72rem;color:var(--pico-muted-color);white-space:nowrap;">
+                        {% set mins = (video.duration // 60) %}
+                        {% set secs = (video.duration % 60) %}
+                        {{ "%d:%02d"|format(mins, secs) }}
+                    </span>
+                    {% endif %}
+                </div>
+            </div>
+            {% if video.description %}
+            <div style="font-size:0.72rem;color:var(--pico-muted-color);margin-top:0.3rem;
+                        display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;line-height:1.4;">
+                {{ video.description[:200] }}
+            </div>
+            {% endif %}
+            <div style="font-size:0.7rem;color:var(--pico-muted-color);margin-top:0.35rem;">
+                {% if video.upload_date and video.upload_date|length == 8 %}
+                {% set months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"] %}
+                {{ months[video.upload_date[4:6]|int - 1] }} {{ video.upload_date[6:]|int }}, {{ video.upload_date[:4] }}
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% else %}
+<div style="text-align:center;padding:4rem 2rem;color:var(--pico-muted-color);">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" style="width:48px;height:48px;opacity:0.3;display:block;margin:0 auto 1rem;">
+        <path d="M8 5v14l11-7z"/>
+    </svg>
+    <p style="margin:0 0 0.5rem;font-size:1rem;">No videos yet</p>
+    <p style="margin:0;font-size:0.85rem;">Add channels and run the downloader to start building your library.</p>
+    <div style="margin-top:1rem;display:flex;gap:0.5rem;justify-content:center;flex-wrap:wrap;">
+        <a href="/channels" role="button" class="outline" style="font-size:0.85rem;">Manage Channels</a>
+        <a href="/discover" role="button" style="font-size:0.85rem;">Discover Videos</a>
+    </div>
+</div>
+{% endif %}

@@ -1,0 +1,77 @@
+{% if results %}
+<p style="font-size:0.85rem;color:var(--pico-muted-color);margin-bottom:0.75rem;">
+    {{ results|length }} result{% if results|length != 1 %}s{% endif %} for "{{ q }}"
+</p>
+<div class="video-grid">
+    {% for video in results %}
+    <div class="video-tile">
+        <a href="{{ video.url }}" target="_blank" rel="noopener" style="display:block;text-decoration:none;">
+            {% if video.thumbnail %}
+            <img src="{{ video.thumbnail }}" alt="{{ video.title }}" loading="lazy">
+            {% else %}
+            <div style="width:100%;aspect-ratio:16/9;background:var(--pico-muted-border-color);display:flex;align-items:center;justify-content:center;">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" style="width:40px;height:40px;opacity:0.3;">
+                    <path d="M8 5v14l11-7z"/>
+                </svg>
+            </div>
+            {% endif %}
+        </a>
+        <div class="tile-body">
+            <div style="font-size:0.85rem;font-weight:600;line-height:1.35;margin-bottom:0.3rem;
+                        display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;">
+                {{ video.title }}
+            </div>
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:0.4rem;margin-bottom:0.3rem;">
+                <span style="font-size:0.75rem;color:var(--pico-muted-color);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
+                    {{ video.uploader }}
+                </span>
+                <div style="display:flex;align-items:center;gap:0.4rem;flex-shrink:0;">
+                    {% if video.view_count %}
+                    <span style="font-size:0.72rem;color:var(--pico-muted-color);white-space:nowrap;">
+                        {% if video.view_count >= 1000000 %}{{ "%.1f"|format(video.view_count / 1000000) }}M
+                        {% elif video.view_count >= 1000 %}{{ "%.0f"|format(video.view_count / 1000) }}K
+                        {% else %}{{ video.view_count }}{% endif %} views
+                    </span>
+                    {% endif %}
+                    {% if video.duration %}
+                    <span style="font-size:0.72rem;color:var(--pico-muted-color);white-space:nowrap;">
+                        {% set mins = (video.duration // 60) %}
+                        {% set secs = (video.duration % 60) %}
+                        {{ "%d:%02d"|format(mins, secs) }}
+                    </span>
+                    {% endif %}
+                </div>
+            </div>
+            <div style="display:flex;gap:0.4rem;align-items:center;margin-bottom:0.3rem;">
+                <form hx-post="/discover/download"
+                      hx-target="#status-{{ loop.index }}"
+                      hx-swap="innerHTML"
+                      style="flex:1;margin:0;">
+                    <input type="hidden" name="url" value="{{ video.url }}">
+                    <button type="submit" class="outline"
+                            style="padding:0.2rem 0.6rem;font-size:0.78rem;margin:0;width:100%;">
+                        Download
+                    </button>
+                </form>
+                <a href="{{ video.url }}" target="_blank" rel="noopener" class="outline secondary"
+                   role="button" style="padding:0.2rem 0.6rem;font-size:0.78rem;margin:0;white-space:nowrap;">
+                    YouTube
+                </a>
+            </div>
+            {% if video.channel_url and video.uploader %}
+            <a href="/channels/add?url={{ video.channel_url | urlencode }}"
+               role="button"
+               style="display:block;width:100%;text-align:center;padding:0.25rem 0.6rem;font-size:0.78rem;margin:0;
+                      border:1px solid #3fb950;color:#3fb950;background:transparent;text-decoration:none;cursor:pointer;
+                      border-radius:var(--pico-border-radius);box-sizing:border-box;">
+                Subscribe to {{ video.uploader }}
+            </a>
+            {% endif %}
+            <div id="status-{{ loop.index }}" style="font-size:0.78rem;margin-top:0.3rem;"></div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% else %}
+<p style="color:var(--pico-muted-color);font-size:0.9rem;">No results found for "{{ q }}".</p>
+{% endif %}

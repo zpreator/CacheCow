@@ -1,0 +1,118 @@
+{% extends "base.html" %}
+
+{% block content %}
+<h2>Settings</h2>
+
+<!-- Global Settings -->
+<div class="settings-section">
+    <h3>Global Settings</h3>
+    <form hx-put="/settings/global" hx-swap="none">
+        <div class="form-grid">
+            <label>
+                Minutes Between Runs
+                <input type="number" name="minutes_between_runs"
+                       value="{{ settings.minutes_between_runs }}" min="1">
+            </label>
+            <label>
+                Max Duration (minutes)
+                <input type="number" name="max_duration"
+                       value="{{ settings.max_duration }}" min="1">
+            </label>
+            <label>
+                Random Interval Lower (seconds)
+                <input type="number" name="random_interval_lower"
+                       value="{{ settings.random_interval_lower }}" min="1">
+            </label>
+            <label>
+                Random Interval Upper (seconds)
+                <input type="number" name="random_interval_upper"
+                       value="{{ settings.random_interval_upper }}" min="1">
+            </label>
+            <label>
+                Days to Look Back
+                <input type="number" name="days"
+                       value="{{ settings.days }}" min="0">
+            </label>
+            <label>
+                Max Videos per Channel
+                <input type="number" name="items"
+                       value="{{ settings.items }}" min="0">
+            </label>
+        </div>
+        <button type="submit" style="margin-top: 1rem;">Save Global Settings</button>
+    </form>
+</div>
+
+<!-- Download Path -->
+<div class="settings-section">
+    <h3>Download Location</h3>
+    <form hx-put="/settings/download-path" hx-swap="none">
+        <label>
+            Download Path
+            <input type="text" name="download_path" value="{{ settings.download_path }}">
+        </label>
+        <button type="submit">Save Path</button>
+    </form>
+</div>
+
+<!-- Cleaning Settings -->
+<div class="settings-section">
+    <h3>File Cleanup</h3>
+    <form hx-put="/settings/cleaning" hx-swap="none">
+        <label>
+            <input type="checkbox" name="remove_old_files" role="switch"
+                   {% if settings.remove_old_files %}checked{% endif %}
+                   onchange="document.getElementById('clean-threshold').style.display = this.checked ? 'block' : 'none'">
+            Remove Old Files
+        </label>
+        <div id="clean-threshold"
+             style="{% if not settings.remove_old_files %}display: none;{% endif %}">
+            <label>
+                Days Before Removal
+                <input type="number" name="clean_threshold"
+                       value="{{ settings.clean_threshold }}" min="1">
+            </label>
+        </div>
+        <button type="submit">Save Cleaning Settings</button>
+    </form>
+</div>
+
+<!-- Tags -->
+<div class="settings-section">
+    <h3>Tags</h3>
+    <p style="font-size:0.85rem;color:var(--pico-muted-color);">Tags organize downloads into folders: <code>{download_path}/{tag}/{uploader}/</code>. The "other" tag is the default and cannot be deleted.</p>
+    <form hx-post="/tags" hx-target="#tag-list" hx-swap="outerHTML" style="margin-bottom:1rem;">
+        <fieldset role="group">
+            <input type="text" name="name" placeholder="New tag name" required>
+            <button type="submit">Add Tag</button>
+        </fieldset>
+    </form>
+    <div id="tag-list">
+        {% include "tags/_tag_list.html" %}
+    </div>
+</div>
+
+<!-- Change Password -->
+<div class="settings-section">
+    <h3>Change Password</h3>
+    <p style="font-size: 0.85rem; color: var(--pico-muted-color);">Default credentials on first install are <strong>admin / admin</strong>.</p>
+    <form hx-put="/settings/password" hx-swap="none">
+        <div class="form-grid">
+            <label>
+                Current Password
+                <input type="password" name="current_password" required autocomplete="current-password">
+            </label>
+            <div></div>
+            <label>
+                New Password
+                <input type="password" name="new_password" required autocomplete="new-password">
+            </label>
+            <label>
+                Confirm New Password
+                <input type="password" name="confirm_password" required autocomplete="new-password">
+            </label>
+        </div>
+        <button type="submit" style="margin-top: 1rem;">Change Password</button>
+    </form>
+</div>
+{% endblock %}

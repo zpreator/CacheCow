@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+
+{% block content %}
+<h2>Manage Tags</h2>
+
+<details>
+    <summary>How Tags Work</summary>
+    <p>Tags organize your downloads into folders. Each channel is assigned a tag,
+    and videos are saved to <code>{download_path}/{tag}/{uploader}/</code>.
+    The "other" tag is the default and cannot be deleted.</p>
+</details>
+
+<form hx-post="/tags" hx-target="#tag-list" hx-swap="outerHTML" style="margin-bottom: 1.5rem;">
+    <fieldset role="group">
+        <input type="text" name="name" placeholder="New tag name" required>
+        <button type="submit">Add Tag</button>
+    </fieldset>
+</form>
+
+<div id="tag-list">
+    {% include "tags/_tag_list.html" %}
+</div>
+{% endblock %}

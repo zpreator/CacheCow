@@ -1,0 +1,41 @@
+{% if live %}
+{% set phase = live.progress.get("phase", "checking") if live.progress else "checking" %}
+<div style="margin-top:0.6rem;padding:0.6rem 0.75rem;background:var(--pico-card-background-color);border:1px solid var(--pico-muted-border-color);border-radius:var(--pico-border-radius);">
+    {% if live.current_video and phase == "downloading" %}
+    <div style="display:flex;align-items:center;gap:0.4rem;margin-bottom:0.4rem;">
+        <span class="queue-status-badge queue-status-badge--downloading" style="font-size:0.7rem;">
+            <span class="queue-pulse"></span> Downloading
+        </span>
+        <span style="font-size:0.72rem;color:var(--pico-muted-color);">
+            Video #{{ live.current_video.video_num }}
+        </span>
+    </div>
+    <div style="font-size:0.8rem;font-weight:500;margin-bottom:0.4rem;
+                display:-webkit-box;-webkit-line-clamp:1;-webkit-box-orient:vertical;overflow:hidden;">
+        {{ live.current_video.title }}
+    </div>
+    <div style="display:flex;align-items:center;gap:0.6rem;">
+        <div class="progress-bar" style="flex:1;">
+            <div class="progress-fill" style="width:{{ live.current_video.percent }}%;"></div>
+        </div>
+        <span style="font-size:0.72rem;color:var(--pico-muted-color);white-space:nowrap;min-width:2.5rem;text-align:right;">
+            {{ live.current_video.percent }}%
+        </span>
+    </div>
+    {% else %}
+    <div style="display:flex;align-items:center;gap:0.4rem;margin-bottom:0.4rem;">
+        <span class="queue-status-badge queue-status-badge--downloading" style="font-size:0.7rem;">
+            <span class="queue-pulse"></span>
+            {% if phase == "sleeping" %}Sleeping for {{ live.progress.get("sleep_seconds", "?") }}s
+            {% elif phase == "finishing" %}Finishing up
+            {% elif phase == "downloading" %}Downloading
+            {% else %}Checking for downloads
+            {% endif %}
+        </span>
+    </div>
+    <div class="progress-bar">
+        <div class="progress-fill progress-fill--indeterminate"></div>
+    </div>
+    {% endif %}
+</div>
+{% endif %}

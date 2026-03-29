@@ -1,6 +1,10 @@
 venv/
 data/
+__pycache__/
+*.pyc
+.env
 client_secret.json
 token.json
 *.log
 *.pid
+temp.*

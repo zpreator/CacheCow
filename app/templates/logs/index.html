@@ -1,0 +1,102 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem;gap:0.75rem;flex-wrap:wrap;">
+    <h2 style="margin:0;">Logs</h2>
+    <div style="display:flex;align-items:center;gap:0.75rem;">
+        <label style="margin:0;display:flex;align-items:center;gap:0.4rem;font-size:0.85rem;">
+            <input type="checkbox" id="auto-refresh" checked style="margin:0;">
+            Auto-refresh
+        </label>
+        <button id="btn-refresh" onclick="refreshLogs()"
+                style="margin:0;padding:0.3rem 0.75rem;font-size:0.85rem;">Refresh</button>
+    </div>
+</div>
+
+<!-- Level tabs -->
+<div style="display:flex;gap:0;margin-bottom:0.75rem;">
+    <button id="tab-summary"  onclick="setLevel('summary')"
+            class="log-tab log-tab--active"
+            style="border-radius:6px 0 0 6px;">Summary</button>
+    <button id="tab-activity" onclick="setLevel('activity')"
+            class="log-tab"
+            style="border-radius:0;">Activity</button>
+    <button id="tab-raw"      onclick="setLevel('raw')"
+            class="log-tab"
+            style="border-radius:0 6px 6px 0;">Raw</button>
+</div>
+
+<!-- Container + lines controls (hidden for summary) -->
+<div id="raw-controls" style="display:none;align-items:center;gap:0.75rem;flex-wrap:wrap;margin-bottom:0.75rem;">
+    <div style="display:flex;gap:0;">
+        <button id="svc-worker" onclick="setContainer('worker')" class="log-tab log-tab--active" style="border-radius:6px 0 0 6px;font-size:0.8rem;padding:0.3rem 0.65rem;">worker</button>
+        <button id="svc-web"    onclick="setContainer('web')"    class="log-tab" style="border-radius:0;font-size:0.8rem;padding:0.3rem 0.65rem;">web</button>
+        <button id="svc-beat"   onclick="setContainer('beat')"   class="log-tab" style="border-radius:0;font-size:0.8rem;padding:0.3rem 0.65rem;">beat</button>
+        <button id="svc-redis"  onclick="setContainer('redis')"  class="log-tab" style="border-radius:0 6px 6px 0;font-size:0.8rem;padding:0.3rem 0.65rem;">redis</button>
+    </div>
+    <label style="margin:0;display:flex;align-items:center;gap:0.4rem;font-size:0.85rem;">
+        Lines:
+        <input type="number" id="log-lines" value="300" min="50" max="2000" step="50"
+               onchange="refreshLogs()"
+               style="margin:0;padding:0.25rem 0.4rem;width:5rem;font-size:0.85rem;">
+    </label>
+</div>
+
+<!-- Output -->
+<div id="log-output" class="log-output">
+    <span style="color:var(--pico-muted-color);">Loading…</span>
+</div>
+
+<script>
+// Clean up any timer left by a previous page load (hx-boost keeps window alive)
+if (window._logTimer) { clearInterval(window._logTimer); window._logTimer = null; }
+
+let _level = 'summary';
+let _container = 'worker';
+
+function setLevel(level) {
+    _level = level;
+    ['summary','activity','raw'].forEach(l => {
+        document.getElementById('tab-' + l).classList.toggle('log-tab--active', l === level);
+    });
+    const rawCtrl = document.getElementById('raw-controls');
+    rawCtrl.style.display = (level === 'summary') ? 'none' : 'flex';
+    refreshLogs();
+}
+
+function setContainer(svc) {
+    _container = svc;
+    ['worker','web','beat','redis'].forEach(s => {
+        document.getElementById('svc-' + s).classList.toggle('log-tab--active', s === svc);
+    });
+    refreshLogs();
+}
+
+function refreshLogs() {
+    const lines = document.getElementById('log-lines') ? document.getElementById('log-lines').value : 300;
+    const url = `/logs/fetch?level=${_level}&container=${_container}&lines=${lines}`;
+    htmx.ajax('GET', url, { target: '#log-output', swap: 'innerHTML' }).then(() => {
+        const box = document.getElementById('log-output');
+        if (box && _level !== 'summary') box.scrollTop = box.scrollHeight;
+    });
+}
+
+document.getElementById('auto-refresh').addEventListener('change', function() {
+    if (window._logTimer) { clearInterval(window._logTimer); window._logTimer = null; }
+    if (this.checked) window._logTimer = setInterval(refreshLogs, 4000);
+});
+
+// Stop timer on page navigation
+document.addEventListener('htmx:beforeHistoryUpdate', function stopLog() {
+    if (window._logTimer) { clearInterval(window._logTimer); window._logTimer = null; }
+    document.removeEventListener('htmx:beforeHistoryUpdate', stopLog);
+});
+
+// Wait for HTMX to fully settle before firing the first load (fixes hx-boost navigation)
+document.addEventListener('htmx:afterSettle', function firstLoad() {
+    document.removeEventListener('htmx:afterSettle', firstLoad);
+    refreshLogs();
+    window._logTimer = setInterval(refreshLogs, 4000);
+});
+</script>
+{% endblock %}

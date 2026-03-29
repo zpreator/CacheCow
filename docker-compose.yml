@@ -1,15 +1,55 @@
 services:
-  streamlit-app:
-    build: .
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8501} --reload
     ports:
       - "${PORT:-8501}:${PORT:-8501}"
-    network_mode: host
     volumes:
-      - .:/app  # Mount the current directory to /app inside the container
-      # - ${DOWNLOAD_PATH:-./downloads}:${DOWNLOAD_PATH:-./downloads}
+      - .:/app
       - ${DOWNLOAD_PATH}:${DOWNLOAD_PATH}
       - /var/run/docker.sock:/var/run/docker.sock
     environment:
       - PYTHONUNBUFFERED=1
-      - PORT=${PORT}
+      - REDIS_URL=redis://redis:6379/0
+      - TZ=${TZ:-UTC}
+    env_file: .env
+    depends_on:
+      - redis
+    restart: unless-stopped
+
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: celery -A app.celery_app worker --loglevel=info --concurrency=1
+    volumes:
+      - ./data:/app/data
+      - ${DOWNLOAD_PATH}:${DOWNLOAD_PATH}
+    environment:
+      - REDIS_URL=redis://redis:6379/0
+      - TZ=${TZ:-UTC}
+    env_file: .env
+    depends_on:
+      - redis
+    restart: unless-stopped
+
+  beat:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: celery -A app.celery_app beat --loglevel=info
+    volumes:
+      - ./data:/app/data
+    environment:
+      - REDIS_URL=redis://redis:6379/0
+      - TZ=${TZ:-UTC}
+    env_file: .env
+    depends_on:
+      - redis
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
     restart: unless-stopped

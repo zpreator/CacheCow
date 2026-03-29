@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+
+{% block content %}
+<!-- Stats strip -->
+<div style="display:flex;gap:0.5rem;margin-bottom:1.25rem;flex-wrap:wrap;">
+    <div style="flex:1;min-width:100px;text-align:center;padding:0.6rem 0.4rem;border:1px solid var(--pico-muted-border-color);border-radius:8px;">
+        <span style="display:block;font-size:1.4rem;font-weight:700;line-height:1.2;">{{ total_videos }}</span>
+        <span style="display:block;font-size:0.75rem;color:var(--pico-muted-color);margin-top:0.1rem;">Videos</span>
+    </div>
+    <div style="flex:1;min-width:100px;text-align:center;padding:0.6rem 0.4rem;border:1px solid var(--pico-muted-border-color);border-radius:8px;">
+        <span style="display:block;font-size:1.4rem;font-weight:700;line-height:1.2;">{{ subscribed_channels }}</span>
+        <span style="display:block;font-size:0.75rem;color:var(--pico-muted-color);margin-top:0.1rem;">Channels</span>
+    </div>
+    {% if disk_usage %}
+    <div style="flex:1;min-width:100px;text-align:center;padding:0.6rem 0.4rem;border:1px solid var(--pico-muted-border-color);border-radius:8px;">
+        <span style="display:block;font-size:1.4rem;font-weight:700;line-height:1.2;">{{ disk_usage.percent }}%</span>
+        <span style="display:block;font-size:0.75rem;color:var(--pico-muted-color);margin-top:0.1rem;">Disk ({{ disk_usage.used_gb }}/{{ disk_usage.total_gb }}G)</span>
+    </div>
+    {% endif %}
+</div>
+
+<!-- Filter bar -->
+<form id="filter-form"
+      hx-get="/videos/search"
+      hx-target="#video-grid"
+      hx-trigger="input changed delay:400ms from:#search-input, change from:select"
+      hx-include="#filter-form"
+      style="display:flex;gap:0.5rem;margin-bottom:1rem;flex-wrap:wrap;">
+    <input id="search-input" type="search" name="q" value="{{ q }}"
+           placeholder="Search videos…"
+           style="flex:1;min-width:180px;margin:0;">
+    <select name="tag_id" style="width:auto;margin:0;">
+        <option value="0" {% if not tag_id %}selected{% endif %}>All tags</option>
+        {% for tag in tags %}
+        <option value="{{ tag.id }}" {% if tag_id == tag.id %}selected{% endif %}>{{ tag.name }}</option>
+        {% endfor %}
+    </select>
+    <select name="sort" style="width:auto;margin:0;">
+        <option value="newest" {% if sort == "newest" %}selected{% endif %}>Newest first</option>
+        <option value="oldest" {% if sort == "oldest" %}selected{% endif %}>Oldest first</option>
+        <option value="longest" {% if sort == "longest" %}selected{% endif %}>Longest first</option>
+    </select>
+</form>
+
+<!-- Video grid -->
+<div id="video-grid">
+    {% include "home/_video_grid.html" %}
+</div>
+{% endblock %}

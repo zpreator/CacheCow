@@ -1,0 +1,276 @@
+{% extends "base.html" %}
+{% from "_macros.html" import platform_badge %}
+
+{% block content %}
+<div style="display:flex;align-items:center;gap:0.75rem;margin-bottom:1.5rem;">
+    <a href="/channels" style="text-decoration:none;color:var(--pico-muted-color);font-size:0.85rem;">← Channels</a>
+    <span style="color:var(--pico-muted-border-color);">/</span>
+    <h2 style="margin:0;">Edit Channel</h2>
+</div>
+
+{% if error %}
+<p class="error">{{ error }}</p>
+{% endif %}
+
+<form hx-put="/channels/{{ channel.id }}"
+      hx-swap="none">
+
+    <!-- Channel preview / image edit -->
+    <div style="display:flex;align-items:center;gap:1rem;margin-bottom:1.25rem;">
+        <div class="image-edit-wrapper" style="position:relative;display:inline-block;width:64px;height:64px;min-width:64px;max-width:64px;flex-shrink:0;overflow:visible;cursor:pointer" onclick="toggleImagePopover(this)">
+            <div id="preview-placeholder" class="placeholder-img" style="width:64px;height:64px;border-radius:50%;{% if channel.image %}display:none;{% endif %}">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" style="width:28px;height:28px"><path d="M12 12c2.7 0 4.8-2.1 4.8-4.8S14.7 2.4 12 2.4 7.2 4.5 7.2 7.2 9.3 12 12 12zm0 2.4c-3.2 0-9.6 1.6-9.6 4.8v2.4h19.2v-2.4c0-3.2-6.4-4.8-9.6-4.8z"/></svg>
+            </div>
+            <img id="preview-image" src="{{ channel.image or '' }}" alt=""
+                 style="width:64px;height:64px;border-radius:50%;object-fit:cover;{% if not channel.image %}display:none;{% endif %}">
+            <div class="image-edit-overlay" style="position:absolute;bottom:-2px;right:-2px;width:22px;height:22px;background:var(--pico-primary);border-radius:50%;display:flex;align-items:center;justify-content:center;z-index:2;padding:0">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" style="width:13px;height:13px;fill:var(--pico-primary-inverse)"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a1 1 0 000-1.41l-2.34-2.34a1 1 0 00-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>
+            </div>
+            <div class="image-edit-popover" style="display:none;position:absolute;top:72px;left:0;background:var(--pico-card-background-color,#1a1a2e);border:1px solid var(--pico-muted-border-color);border-radius:8px;padding:0.75rem;z-index:20;min-width:260px;box-shadow:0 4px 12px rgba(0,0,0,0.3)" onclick="event.stopPropagation()">
+                <label style="font-size:0.85rem">Paste image URL</label>
+                <input type="url" placeholder="https://..." onkeydown="if(event.key==='Enter'){event.preventDefault();applyImageUrl(this)}">
+                <div style="display:flex;gap:0.5rem;align-items:center">
+                    <button type="button" class="outline" style="margin:0;padding:0.3rem 0.6rem;font-size:0.8rem" onclick="applyImageUrl(this.closest('.image-edit-popover').querySelector('input[type=url]'))">Apply</button>
+                </div>
+                <div style="text-align:center;font-size:0.8rem;color:var(--pico-muted-color);margin:0.5rem 0">or</div>
+                <div style="display:flex;gap:0.5rem;align-items:center">
+                    <button type="button" class="outline" style="margin:0;padding:0.3rem 0.6rem;font-size:0.8rem" onclick="this.closest('.image-edit-popover').querySelector('input[type=file]').click()">Upload Image</button>
+                    <input type="file" accept="image/*" style="display:none" onchange="uploadImage(this)">
+                </div>
+            </div>
+        </div>
+        <div>
+            <div style="display:flex;align-items:center;gap:0.4rem;font-size:1.1rem;font-weight:600;">
+                {{ platform_badge(channel.link) }}
+                {{ channel.name }}
+            </div>
+            <div style="font-size:0.8rem;color:var(--pico-muted-color);">{{ channel.tag.name }}</div>
+        </div>
+    </div>
+
+    <input type="hidden" name="image" id="image-input" value="{{ channel.image or '' }}">
+
+    <div class="form-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem;">
+        <label class="full-width" style="grid-column:1/-1;">
+            Channel Name
+            <input type="text" name="name" value="{{ channel.name }}" required>
+        </label>
+        <label class="full-width" style="grid-column:1/-1;">
+            Channel / Playlist URL
+            <input type="url" name="link" value="{{ channel.link }}" required placeholder="https://...">
+        </label>
+
+        <div class="tag-select-wrapper" style="grid-column:1/-1;">
+            <label>Category Tag</label>
+            <select name="tag_id" onchange="handleTagSelect(this)">
+                {% for tag in tags %}
+                <option value="{{ tag.id }}" {% if tag.id == channel.tag_id %}selected{% endif %}>{{ tag.name }}</option>
+                {% endfor %}
+                <option value="__new__">+ New...</option>
+            </select>
+            <div class="tag-inline-create" style="display:none;gap:0.5rem;align-items:center">
+                <input type="text" placeholder="New tag name" style="flex:1;margin:0;padding:0.4rem 0.6rem;font-size:0.85rem" onkeydown="if(event.key==='Enter'){event.preventDefault();addNewTag(this)}">
+                <button type="button" class="outline" style="margin:0;padding:0.4rem 0.75rem;font-size:0.85rem;white-space:nowrap" onclick="addNewTag(this.previousElementSibling)">Add</button>
+                <button type="button" class="outline secondary" style="margin:0;padding:0.4rem 0.75rem;font-size:0.85rem;white-space:nowrap" onclick="cancelNewTag(this)">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="checkbox-row" style="margin-top:1rem;">
+        <label>
+            <input type="checkbox" name="subscribe" role="switch" {% if channel.subscribe %}checked{% endif %}>
+            Subscribe
+        </label>
+        <label>
+            <input type="checkbox" name="use_global_settings" role="switch"
+                   {% if channel.use_global_settings %}checked{% endif %}
+                   onchange="document.getElementById('custom-settings').style.display = this.checked ? 'none' : 'grid'">
+            Use Global Settings
+        </label>
+        <label>
+            <input type="checkbox" name="download_all" role="switch" {% if channel.download_all %}checked{% endif %}>
+            Download All
+        </label>
+    </div>
+
+    <div id="custom-settings" class="form-grid"
+         style="display:{% if not channel.use_global_settings %}grid{% else %}none{% endif %};grid-template-columns:1fr 1fr;gap:0.75rem;margin-top:1rem;">
+        <label>
+            Max Duration (minutes)
+            <input type="number" name="max_duration" value="{{ channel.max_duration }}" min="1">
+        </label>
+        <label>
+            Days to Look Back
+            <input type="number" name="days" value="{{ channel.days }}" min="0">
+        </label>
+        <label>
+            Max Videos
+            <input type="number" name="items" value="{{ channel.items }}" min="0">
+        </label>
+        <div></div>
+        <div style="grid-column:1/-1;">
+            <label>Include Keywords</label>
+            <input type="hidden" name="include_keywords" value="{{ channel.include_keywords or '' }}">
+            <div class="keyword-tags" onclick="this.querySelector('input[type=text]').focus()">
+                {% if channel.include_keywords %}
+                    {% for kw in channel.include_keywords.split(',') %}
+                        {% if kw.strip() %}
+                        <span class="keyword-chip">{{ kw.strip() }}<button type="button" onclick="removeKeyword(this)">&times;</button></span>
+                        {% endif %}
+                    {% endfor %}
+                {% endif %}
+                <input type="text" placeholder="Type & press Enter" onkeydown="handleKeywordInput(event, this)">
+            </div>
+        </div>
+        <div style="grid-column:1/-1;">
+            <label>Exclude Keywords</label>
+            <input type="hidden" name="exclude_keywords" value="{{ channel.exclude_keywords or '' }}">
+            <div class="keyword-tags" onclick="this.querySelector('input[type=text]').focus()">
+                {% if channel.exclude_keywords %}
+                    {% for kw in channel.exclude_keywords.split(',') %}
+                        {% if kw.strip() %}
+                        <span class="keyword-chip">{{ kw.strip() }}<button type="button" onclick="removeKeyword(this)">&times;</button></span>
+                        {% endif %}
+                    {% endfor %}
+                {% endif %}
+                <input type="text" placeholder="Type & press Enter" onkeydown="handleKeywordInput(event, this)">
+            </div>
+        </div>
+    </div>
+
+    <div style="display:flex;gap:0.5rem;margin-top:1.5rem;flex-wrap:wrap;">
+        <button id="save-btn" type="submit" style="margin:0;" disabled>Save Changes</button>
+        <a href="/channels" role="button" class="outline secondary" style="margin:0;">Cancel</a>
+        <button type="button" class="outline secondary" style="margin:0;margin-left:auto;"
+                hx-delete="/channels/{{ channel.id }}"
+                hx-confirm="Delete '{{ channel.name }}'? This cannot be undone."
+                hx-target="body"
+                hx-push-url="/channels">
+            Delete Channel
+        </button>
+    </div>
+</form>
+
+<script>
+function handleTagSelect(select) {
+    if (select.value !== '__new__') return;
+    const wrapper = select.closest('.tag-select-wrapper');
+    select.style.display = 'none';
+    const creator = wrapper.querySelector('.tag-inline-create');
+    creator.style.display = 'flex';
+    creator.querySelector('input').focus();
+    select.dataset.prevValue = select.options[0]?.value || '';
+}
+async function addNewTag(input) {
+    const name = input.value.trim();
+    if (!name) return;
+    const wrapper = input.closest('.tag-select-wrapper');
+    const select = wrapper.querySelector('select');
+    const formData = new FormData();
+    formData.append('name', name);
+    const resp = await fetch('/tags/json', { method: 'POST', body: formData });
+    const data = await resp.json();
+    if (data.id) {
+        const newOpt = document.createElement('option');
+        newOpt.value = data.id;
+        newOpt.textContent = data.name;
+        const newOption = select.querySelector('option[value="__new__"]');
+        select.insertBefore(newOpt, newOption);
+        select.value = data.id;
+    }
+    input.value = '';
+    input.closest('.tag-inline-create').style.display = 'none';
+    select.style.display = '';
+    setDirty(true);
+}
+function cancelNewTag(btn) {
+    const wrapper = btn.closest('.tag-select-wrapper');
+    const select = wrapper.querySelector('select');
+    const creator = wrapper.querySelector('.tag-inline-create');
+    creator.style.display = 'none';
+    creator.querySelector('input').value = '';
+    select.style.display = '';
+    if (select.dataset.prevValue) select.value = select.dataset.prevValue;
+}
+
+function handleKeywordInput(e, input) {
+    if (e.key === 'Enter' || e.key === ',') {
+        e.preventDefault();
+        const val = input.value.replace(/,/g, '').trim();
+        if (!val) return;
+        const chip = document.createElement('span');
+        chip.className = 'keyword-chip';
+        chip.innerHTML = val + '<button type="button" onclick="removeKeyword(this)">&times;</button>';
+        input.parentElement.insertBefore(chip, input);
+        input.value = '';
+        syncKeywords(input.closest('.keyword-tags'));
+    } else if (e.key === 'Backspace' && !input.value) {
+        const chips = input.parentElement.querySelectorAll('.keyword-chip');
+        if (chips.length) { chips[chips.length - 1].remove(); syncKeywords(input.closest('.keyword-tags')); }
+    }
+}
+function removeKeyword(btn) {
+    const container = btn.closest('.keyword-tags');
+    btn.parentElement.remove();
+    syncKeywords(container);
+}
+function syncKeywords(container) {
+    const chips = container.querySelectorAll('.keyword-chip');
+    const values = Array.from(chips).map(c => c.firstChild.textContent.trim());
+    container.previousElementSibling.value = values.join(', ');
+    setDirty(true);
+}
+
+function toggleImagePopover(wrapper) {
+    const popover = wrapper.querySelector('.image-edit-popover');
+    const isOpen = popover.style.display === 'block';
+    closeAllPopovers();
+    if (!isOpen) popover.style.display = 'block';
+}
+function closeAllPopovers() {
+    document.querySelectorAll('.image-edit-popover').forEach(p => p.style.display = 'none');
+}
+function applyImageUrl(input) {
+    const url = input.value.trim();
+    if (!url) return;
+    document.getElementById('image-input').value = url;
+    const img = document.getElementById('preview-image');
+    img.src = url; img.style.display = 'block';
+    document.getElementById('preview-placeholder').style.display = 'none';
+    input.value = '';
+    closeAllPopovers();
+    setDirty(true);
+}
+async function uploadImage(fileInput) {
+    const file = fileInput.files[0];
+    if (!file) return;
+    const formData = new FormData();
+    formData.append('file', file);
+    const resp = await fetch('/channels/upload-image', { method: 'POST', body: formData });
+    const data = await resp.json();
+    if (data.url) {
+        document.getElementById('image-input').value = data.url;
+        const img = document.getElementById('preview-image');
+        img.src = data.url; img.style.display = 'block';
+        document.getElementById('preview-placeholder').style.display = 'none';
+        closeAllPopovers();
+        setDirty(true);
+    }
+    fileInput.value = '';
+}
+document.addEventListener('click', e => { if (!e.target.closest('.image-edit-wrapper')) closeAllPopovers(); });
+
+// Dirty-state tracking
+function setDirty(val) {
+    document.getElementById('save-btn').disabled = !val;
+}
+(function() {
+    const form = document.querySelector('form[hx-put]');
+    form.addEventListener('input', () => setDirty(true));
+    form.addEventListener('change', () => setDirty(true));
+    form.addEventListener('htmx:afterRequest', function(e) {
+        if (e.detail.successful) setDirty(false);
+    });
+})();
+</script>
+{% endblock %}

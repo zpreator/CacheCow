@@ -1,0 +1,23 @@
+{% if progress and progress.status == "running" %}
+<p>Downloading: <strong>{{ progress.name }}</strong>
+    ({{ progress.index + 1 }} of {{ progress.total }})</p>
+<div class="progress-wrapper">
+    <div class="progress-bar">
+        <div class="progress-fill"
+             style="width: {{ ((progress.index + 1) / progress.total * 100) if progress.total > 0 else 0 }}%">
+        </div>
+    </div>
+</div>
+<div style="display: flex; gap: 0.5rem; margin-top: 0.5rem;">
+    <button class="outline secondary" hx-post="/downloads/stop" hx-swap="none">
+        Stop Downloader
+    </button>
+</div>
+{% else %}
+<p>Downloader is idle.</p>
+<div style="display: flex; gap: 0.5rem;">
+    <button hx-post="/downloads/all" hx-swap="none">
+        Run Downloader Now
+    </button>
+</div>
+{% endif %}

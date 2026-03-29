@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem;">
+    <h2 style="margin:0;">Queue</h2>
+    <span id="next-run-countdown" style="font-size:0.82rem;color:var(--pico-muted-color);"
+          hx-get="/downloads/next-run" hx-trigger="load, every 30s"
+          hx-swap="none"
+          hx-on::after-request="initCountdown(event)"></span>
+</div>
+
+<!-- Live status (polled every 2s) -->
+<div id="queue-status"
+     hx-get="/queue/status"
+     hx-trigger="every 2s"
+     hx-swap="innerHTML">
+    {% include "queue/_status.html" %}
+</div>
+
+<script>
+var _countdownInterval;
+function initCountdown(evt) {
+    var text = evt.detail.xhr.responseText.trim();
+    var el = document.getElementById('next-run-countdown');
+    if (!el) return;
+    clearInterval(_countdownInterval);
+    if (text === 'running') { el.textContent = 'Currently running'; return; }
+    var secs = parseInt(text, 10);
+    if (isNaN(secs) || secs < 0) { el.textContent = ''; return; }
+    function render() {
+        if (secs <= 0) { el.textContent = 'Next run: now'; return; }
+        var h = Math.floor(secs / 3600);
+        var m = Math.floor((secs % 3600) / 60);
+        var s = secs % 60;
+        var parts = [];
+        if (h > 0) parts.push(h + 'h');
+        if (m > 0 || h > 0) parts.push(m + 'm');
+        parts.push(s + 's');
+        el.textContent = 'Next run: ' + parts.join(' ');
+        secs--;
+    }
+    render();
+    _countdownInterval = setInterval(render, 1000);
+}
+</script>
+{% endblock %}
