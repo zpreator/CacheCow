@@ -1,0 +1,99 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  # ── Step 1: Build PyInstaller sidecar on each platform ─────────────────────
+  build-sidecar:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest
+            target: aarch64-apple-darwin
+            exe_suffix: ""
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            exe_suffix: ".exe"
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install Python dependencies
+        run: pip install -r requirements.txt pyinstaller
+
+      - name: Build sidecar
+        run: pyinstaller cachecow.spec --noconfirm
+
+      - name: Stage sidecar for Tauri
+        shell: bash
+        run: |
+          mkdir -p src-tauri/binaries
+          cp dist/cachecow-server${{ matrix.exe_suffix }} \
+             src-tauri/binaries/cachecow-server-${{ matrix.target }}${{ matrix.exe_suffix }}
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: sidecar-${{ matrix.target }}
+          path: src-tauri/binaries/
+
+  # ── Step 2: Build Tauri installer on each platform ─────────────────────────
+  build-tauri:
+    needs: build-sidecar
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest
+            target: aarch64-apple-darwin
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download sidecar
+        uses: actions/download-artifact@v4
+        with:
+          name: sidecar-${{ matrix.target }}
+          path: src-tauri/binaries/
+
+      - name: Make sidecar executable (macOS)
+        if: runner.os == 'macOS'
+        run: chmod +x src-tauri/binaries/*
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Rust cache
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      - uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tagName: ${{ github.ref_name }}
+          releaseName: "CacheCow ${{ github.ref_name }}"
+          releaseBody: |
+            ## What's new
+            See commit history for details.
+
+            ## Downloads
+            | Platform | File |
+            |----------|------|
+            | macOS Apple Silicon | `CacheCow_*_aarch64.dmg` |
+            | Windows | `CacheCow_*_x64-setup.exe` |
+          releaseDraft: true
+          includeUpdaterJson: false
