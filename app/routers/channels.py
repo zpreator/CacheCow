@@ -1,11 +1,9 @@
 import asyncio
 import concurrent.futures
 import json
-import os
 import time
 from pathlib import Path
 
-import redis as redis_lib
 import yt_dlp
 from fastapi import APIRouter, Depends, File, Query, Request, UploadFile
 from fastapi.responses import HTMLResponse, JSONResponse
@@ -21,29 +19,22 @@ from app.models import Channel, Tag, Video
 
 router = APIRouter(prefix="/channels")
 
-_REDIS_URL = os.environ.get("REDIS_URL", "redis://localhost:6379/0")
-
 
 def _get_channel_live_status(channel_id: int) -> dict | None:
     """Return live download info if this channel is currently being downloaded, else None."""
-    try:
-        r = redis_lib.Redis.from_url(_REDIS_URL)
-        from app.tasks.download import REDIS_PROGRESS_KEY, REDIS_TASK_ID_KEY
-        if not r.exists(REDIS_TASK_ID_KEY):
+    from app import state
+    with state._lock:
+        if state.task_id is None or state.progress.get("status") != "running":
             return None
-        progress_raw = r.get(REDIS_PROGRESS_KEY)
-        if not progress_raw:
+        if state.progress.get("channel_id") != channel_id:
             return None
-        progress = json.loads(progress_raw)
-        if progress.get("status") != "running" or progress.get("channel_id") != channel_id:
-            return None
-        current_video_raw = r.get("download:current_video")
-        current_video = json.loads(current_video_raw) if current_video_raw else None
-        return {"progress": progress, "current_video": current_video}
-    except Exception:
-        return None
+        return {
+            "progress": dict(state.progress),
+            "current_video": dict(state.current_video) if state.current_video else None,
+        }
 
-UPLOAD_DIR = Path("app/static/uploads")
+from app.paths import UPLOADS_DIR
+UPLOAD_DIR = UPLOADS_DIR
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 
 _executor = concurrent.futures.ThreadPoolExecutor(max_workers=2)

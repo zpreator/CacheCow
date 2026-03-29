@@ -3,9 +3,7 @@ uvicorn[standard]
 jinja2
 python-multipart
 sqlalchemy
-celery[redis]
-celery-redbeat
-redis
+apscheduler
 yt-dlp
 python-dotenv
 itsdangerous

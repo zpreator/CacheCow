@@ -1,5 +1,4 @@
 import glob
-import json
 import os
 import re
 import subprocess
@@ -10,7 +9,8 @@ from pathlib import Path
 
 import yt_dlp
 
-ARCHIVE_FILE = "data/archive.txt"
+from app.paths import ARCHIVE_FILE as _ARCHIVE_FILE_PATH
+ARCHIVE_FILE = str(_ARCHIVE_FILE_PATH)
 
 
 class Logger:
@@ -82,8 +82,9 @@ def _save_video_to_db(session_factory, channel_id, info, filename, file_size, lo
             db.close()
 
 
-def make_hook(counter: list, channel_id=None, session_factory=None, redis_client=None, log_id=None):
+def make_hook(counter: list, channel_id=None, session_factory=None, log_id=None):
     """Return a progress hook that increments counter[0] on each completed download."""
+    from app import state
     last_info = {}  # capture full info_dict from "downloading" phase
 
     def hook(d):
@@ -91,28 +92,21 @@ def make_hook(counter: list, channel_id=None, session_factory=None, redis_client
             info = d.get("info_dict", {})
             if info.get("title"):
                 last_info.update(info)
-            if redis_client:
-                total = d.get("total_bytes") or d.get("total_bytes_estimate", 0)
-                downloaded = d.get("downloaded_bytes", 0)
-                percent = round(downloaded / total * 100, 1) if total else 0
-                try:
-                    # Update phase to "downloading" now that a video is actively being fetched
-                    progress_raw = redis_client.get("download:progress")
-                    if progress_raw:
-                        progress = json.loads(progress_raw)
-                        if progress.get("phase") != "downloading":
-                            progress["phase"] = "downloading"
-                            redis_client.set("download:progress", json.dumps(progress))
-                    redis_client.setex("download:current_video", 120, json.dumps({
-                        "title": info.get("title", ""),
-                        "thumbnail": info.get("thumbnail", ""),
-                        "uploader": info.get("uploader") or info.get("channel", ""),
-                        "percent": percent,
-                        "speed": d.get("_speed_str", ""),
-                        "video_num": counter[0] + 1,
-                    }))
-                except Exception:
-                    pass
+            total = d.get("total_bytes") or d.get("total_bytes_estimate", 0)
+            downloaded = d.get("downloaded_bytes", 0)
+            percent = round(downloaded / total * 100, 1) if total else 0
+            try:
+                state.update_progress(phase="downloading")
+                state.set_current_video({
+                    "title": info.get("title", ""),
+                    "thumbnail": info.get("thumbnail", ""),
+                    "uploader": info.get("uploader") or info.get("channel", ""),
+                    "percent": percent,
+                    "speed": d.get("_speed_str", ""),
+                    "video_num": counter[0] + 1,
+                })
+            except Exception:
+                pass
         elif d["status"] == "finished":
             filename = d.get("filename", "")
             if ".mp4" in filename or ".webm" in filename or ".mkv" in filename:
@@ -121,11 +115,7 @@ def make_hook(counter: list, channel_id=None, session_factory=None, redis_client
                 final_filename = re.sub(r'\.f\d+(?=\.[^.]+$)', '', filename)
                 print(f"[DOWNLOADED] {final_filename}")
                 # Clear current video so the queue page doesn't show stale progress
-                if redis_client:
-                    try:
-                        redis_client.delete("download:current_video")
-                    except Exception:
-                        pass
+                state.set_current_video(None)
                 if session_factory:
                     # Merge: prefer full info captured during downloading, fill gaps from finished
                     info = {**d.get("info_dict", {}), **last_info}
@@ -133,29 +123,24 @@ def make_hook(counter: list, channel_id=None, session_factory=None, redis_client
     return hook
 
 
-def make_tiktok_hook(counter: list, channel_id=None, session_factory=None, redis_client=None, log_id=None):
+def make_tiktok_hook(counter: list, channel_id=None, session_factory=None, log_id=None):
     """Return a TikTok progress hook that increments counter[0] on each completed download."""
+    from app import state
     def hook(d):
         if d["status"] == "downloading":
-            if redis_client:
-                info = d.get("info_dict", {})
-                total = d.get("total_bytes") or d.get("total_bytes_estimate", 0)
-                downloaded = d.get("downloaded_bytes", 0)
-                percent = round(downloaded / total * 100, 1) if total else 0
-                try:
-                    progress_raw = redis_client.get("download:progress")
-                    if progress_raw:
-                        progress = json.loads(progress_raw)
-                        if progress.get("phase") != "downloading":
-                            progress["phase"] = "downloading"
-                            redis_client.set("download:progress", json.dumps(progress))
-                    redis_client.setex("download:current_video", 120, json.dumps({
-                        "title": info.get("title", ""),
-                        "percent": percent,
-                        "speed": d.get("_speed_str", ""),
-                    }))
-                except Exception:
-                    pass
+            info = d.get("info_dict", {})
+            total = d.get("total_bytes") or d.get("total_bytes_estimate", 0)
+            downloaded = d.get("downloaded_bytes", 0)
+            percent = round(downloaded / total * 100, 1) if total else 0
+            try:
+                state.update_progress(phase="downloading")
+                state.set_current_video({
+                    "title": info.get("title", ""),
+                    "percent": percent,
+                    "speed": d.get("_speed_str", ""),
+                })
+            except Exception:
+                pass
         elif d["status"] == "finished":
             filename = d.get("filename", "")
             if ".mp4" in filename:
@@ -236,7 +221,7 @@ def clean_fragments(download_dir):
         print(f"Cleaned up {deleted} leftover fragment files.")
 
 
-def download_channel(channel, settings, session_factory=None, redis_client=None, one_off=False, log_id=None) -> int:
+def download_channel(channel, settings, session_factory=None, one_off=False, log_id=None) -> int:
     """Download videos for a single channel using yt-dlp.
 
     Returns:
@@ -285,7 +270,7 @@ def download_channel(channel, settings, session_factory=None, redis_client=None,
                 postprocessors = [
                     {"key": "EmbedThumbnail"},
                 ]
-                hook_func = make_tiktok_hook(counter, channel_id=channel_id, session_factory=session_factory, redis_client=redis_client, log_id=log_id)
+                hook_func = make_tiktok_hook(counter, channel_id=channel_id, session_factory=session_factory, log_id=log_id)
             else:
                 fmt = "bestvideo[height<=1080][vcodec^=avc1]+bestaudio[acodec^=mp4a]/bestvideo[height<=1080]+bestaudio[acodec^=mp4a]/bestvideo[height<=1080]+bestaudio/best"
                 postprocessors = [
@@ -295,7 +280,7 @@ def download_channel(channel, settings, session_factory=None, redis_client=None,
                     },
                     {"key": "FFmpegMetadata"},
                 ]
-                hook_func = make_hook(counter, channel_id=channel_id, session_factory=session_factory, redis_client=redis_client, log_id=log_id)
+                hook_func = make_hook(counter, channel_id=channel_id, session_factory=session_factory, log_id=log_id)
 
             ydl_opts = {
                 "format": fmt,

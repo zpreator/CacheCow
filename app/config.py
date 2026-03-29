@@ -1,3 +1,4 @@
+from app.paths import DB_PATH
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -11,8 +12,7 @@ class AppSettings(BaseSettings):
     app_user: str = "admin"
     app_pass_hash: str = "8c6976e5b5410415bde908bd4dee15dfb167a9c873fc4bb8a81f6f2ab448a918"
     secret_key: str = "change-me-in-production"
-    redis_url: str = "redis://localhost:6379/0"
-    database_url: str = "sqlite:///data/cachecow.db"
+    database_url: str = f"sqlite:///{DB_PATH}"
 
 
 settings = AppSettings()

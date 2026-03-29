@@ -47,7 +47,7 @@ async def update_global_settings(request: Request, db: Session = Depends(get_db)
 
     db.commit()
 
-    from app.celery_app import update_download_schedule
+    from app.scheduler import update_download_schedule
     update_download_schedule(s.minutes_between_runs)
 
     response = HTMLResponse("")

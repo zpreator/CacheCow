@@ -13,5 +13,6 @@ def _localtime(value: datetime) -> datetime:
     return value.astimezone(tzlocal())
 
 
-templates = Jinja2Templates(directory="app/templates")
+from app.paths import TEMPLATES_DIR
+templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
 templates.env.filters["localtime"] = _localtime
