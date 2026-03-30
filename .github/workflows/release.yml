@@ -93,10 +93,29 @@ jobs:
             ## Downloads
             | Platform | File |
             |----------|------|
-            | macOS Apple Silicon | `CacheCow_*_aarch64.dmg` |
-            | Windows | `CacheCow_*_x64-setup.exe` |
+            | macOS Apple Silicon | `CacheCow-mac.dmg` |
+            | Windows | `CacheCow-windows.exe` |
+            | Linux (server) | run `curl -sSL .../install.sh \| bash` |
           releaseDraft: true
           includeUpdaterJson: false
+
+      - name: Upload stable-named macOS asset
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          DMG=$(find src-tauri/target/release/bundle/dmg -name "*.dmg" | head -1)
+          gh release upload ${{ github.ref_name }} "$DMG#CacheCow-mac.dmg" --clobber
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload stable-named Windows asset
+        if: runner.os == 'Windows'
+        shell: bash
+        run: |
+          EXE=$(find src-tauri/target/release/bundle/nsis -name "*-setup.exe" | head -1)
+          gh release upload ${{ github.ref_name }} "$EXE#CacheCow-windows.exe" --clobber
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   # ── Step 3: Build and push Docker image, upload install script ──────────────
   build-docker:
