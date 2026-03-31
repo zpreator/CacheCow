@@ -46,9 +46,45 @@ jobs:
           name: sidecar-${{ matrix.target }}
           path: src-tauri/binaries/
 
-  # ── Step 2: Build Tauri installer on each platform ─────────────────────────
-  build-tauri:
+  # ── Step 2: Create the GitHub draft release (once) ─────────────────────────
+  create-release:
     needs: build-sidecar
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    outputs:
+      release_id: ${{ steps.create.outputs.release_id }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Create draft release
+        id: create
+        run: |
+          RELEASE_ID=$(gh api repos/${{ github.repository }}/releases \
+            -X POST \
+            -f tag_name=${{ github.ref_name }} \
+            -f name="CacheCow ${{ github.ref_name }}" \
+            -f body="## What's new
+          See commit history for details.
+
+          ## Downloads
+          | Platform | File |
+          |----------|------|
+          | macOS Apple Silicon | \`CacheCow-mac.dmg\` |
+          | Windows | \`CacheCow-windows.exe\` |
+          | Linux (server) | \`curl -sSL .../install.sh | bash\` |" \
+            -F draft=true \
+            --jq '.id')
+          echo "release_id=$RELEASE_ID" >> $GITHUB_OUTPUT
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # ── Step 3: Build Tauri installer on each platform ─────────────────────────
+  build-tauri:
+    needs: [build-sidecar, create-release]
+    permissions:
+      contents: write
     strategy:
       fail-fast: false
       matrix:
@@ -84,19 +120,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          tagName: ${{ github.ref_name }}
-          releaseName: "CacheCow ${{ github.ref_name }}"
-          releaseBody: |
-            ## What's new
-            See commit history for details.
-
-            ## Downloads
-            | Platform | File |
-            |----------|------|
-            | macOS Apple Silicon | `CacheCow-mac.dmg` |
-            | Windows | `CacheCow-windows.exe` |
-            | Linux (server) | run `curl -sSL .../install.sh \| bash` |
-          releaseDraft: true
+          releaseId: ${{ needs.create-release.outputs.release_id }}
           includeUpdaterJson: false
 
       - name: Upload stable-named macOS asset
@@ -117,9 +141,9 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-  # ── Step 3: Build and push Docker image, upload install script ──────────────
+  # ── Step 4: Build and push Docker image, upload install script ──────────────
   build-docker:
-    needs: build-tauri
+    needs: [create-release, build-tauri]
     runs-on: ubuntu-latest
     permissions:
       contents: write
