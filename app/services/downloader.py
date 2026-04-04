@@ -221,6 +221,22 @@ def clean_fragments(download_dir):
         print(f"Cleaned up {deleted} leftover fragment files.")
 
 
+def _find_ffmpeg_location() -> str | None:
+    """Return a directory containing ffmpeg, checking bundled binary first."""
+    import shutil
+    from pathlib import Path as _Path
+    from app.paths import BUNDLED_FFMPEG
+    if BUNDLED_FFMPEG:
+        return str(BUNDLED_FFMPEG.parent)
+    found = shutil.which("ffmpeg")
+    if found:
+        return str(_Path(found).parent)
+    for directory in ["/opt/homebrew/bin", "/usr/local/bin", "/usr/bin"]:
+        if _Path(directory, "ffmpeg").exists():
+            return directory
+    return None
+
+
 def download_channel(channel, settings, session_factory=None, one_off=False, log_id=None) -> int:
     """Download videos for a single channel using yt-dlp.
 
@@ -228,6 +244,17 @@ def download_channel(channel, settings, session_factory=None, one_off=False, log
         Number of videos downloaded.
     """
     counter = [0]  # mutable container so hook can increment it
+
+    # Validate download path before invoking yt-dlp
+    download_dir = Path(settings.download_path) if settings.download_path else None
+    if not download_dir:
+        print("[ERROR] No download path configured. Set it in Settings.")
+        return 0
+    try:
+        download_dir.mkdir(parents=True, exist_ok=True)
+    except Exception as e:
+        print(f"[ERROR] Cannot create download directory '{download_dir}': {e}")
+        return 0
 
     for attempt in range(3):
         try:
@@ -307,6 +334,9 @@ def download_channel(channel, settings, session_factory=None, one_off=False, log
                 "quiet": True,
                 "noprogress": True,
             }
+            ffmpeg_loc = _find_ffmpeg_location()
+            if ffmpeg_loc:
+                ydl_opts["ffmpeg_location"] = ffmpeg_loc
 
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                 ydl.download([link.strip()])

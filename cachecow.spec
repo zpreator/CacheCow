@@ -8,6 +8,7 @@ Build:
 Output: dist/cachecow-server/  (one-folder bundle)
 """
 
+import shutil
 import sys
 from pathlib import Path
 
@@ -73,11 +74,19 @@ DATAS = [
     (str(ROOT / "app" / "static"),    "app/static"),
 ]
 
+# ── Bundle ffmpeg if available ────────────────────────────────────────────────
+_ffmpeg = shutil.which("ffmpeg") or shutil.which("ffmpeg.exe")
+BINARIES = [(str(_ffmpeg), ".")] if _ffmpeg else []
+if _ffmpeg:
+    print(f"Bundling ffmpeg from: {_ffmpeg}")
+else:
+    print("WARNING: ffmpeg not found in PATH — it will not be bundled")
+
 # ── Analysis ─────────────────────────────────────────────────────────────────
 a = Analysis(
     [str(ROOT / "run.py")],
     pathex=[str(ROOT)],
-    binaries=[],
+    binaries=BINARIES,
     datas=DATAS,
     hiddenimports=HIDDEN_IMPORTS,
     hookspath=[],

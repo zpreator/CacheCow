@@ -97,7 +97,8 @@ def ensure_defaults(db):
         db.add(Tag(name="other"))
         db.commit()
     if not db.query(Settings).first():
-        db.add(Settings(download_path=app_settings.download_path))
+        from app.paths import DEFAULT_DOWNLOAD_DIR
+        db.add(Settings(download_path=str(DEFAULT_DOWNLOAD_DIR)))
         db.commit()
 
     # Runtime column migrations for SQLite (create_all won't add columns to existing tables)

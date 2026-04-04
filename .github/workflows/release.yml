@@ -31,6 +31,10 @@ jobs:
       - name: Install Python dependencies
         run: pip install -r requirements.txt pyinstaller
 
+      - name: Install ffmpeg (Windows)
+        if: runner.os == 'Windows'
+        run: choco install ffmpeg -y
+
       - name: Build sidecar
         run: pyinstaller cachecow.spec --noconfirm
 
