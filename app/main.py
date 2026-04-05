@@ -69,7 +69,10 @@ app.include_router(tags_router.router)
 
 @app.middleware("http")
 async def auth_middleware(request: Request, call_next):
-    public_paths = ["/login", "/static"]
+    from app.config import settings as _settings
+    if _settings.skip_auth:
+        return await call_next(request)
+    public_paths = ["/login", "/setup", "/static"]
     if any(request.url.path.startswith(p) for p in public_paths):
         return await call_next(request)
     redirect = require_auth(request)

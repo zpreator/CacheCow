@@ -295,6 +295,12 @@ async def create_channel(request: Request, db: Session = Depends(get_db)):
     )
     db.add(channel)
     db.commit()
+    db.refresh(channel)
+
+    if "download_now" in form:
+        from app.executor import submit_download
+        from app.tasks.download import download_single_channel
+        submit_download(download_single_channel, channel.id)
 
     from fastapi.responses import RedirectResponse
     return RedirectResponse("/channels", status_code=302)
@@ -399,6 +405,37 @@ async def get_channel_tabs(url: str = Query("")):
     loop = asyncio.get_event_loop()
     tabs = await loop.run_in_executor(_executor, _fetch_channel_tabs, url)
     return JSONResponse(tabs)
+
+
+def _fetch_video_count(url: str) -> int | None:
+    """Return the total video count for a channel/playlist URL, or None if unknown."""
+    try:
+        with yt_dlp.YoutubeDL({
+            "quiet": True, "no_warnings": True,
+            "skip_download": True, "extract_flat": True,
+        }) as ydl:
+            info = ydl.extract_info(url, download=False)
+            if info:
+                count = info.get("playlist_count") or info.get("n_entries")
+                if count:
+                    return int(count)
+                # Fall back to counting entries if they were fetched
+                entries = info.get("entries")
+                if entries is not None:
+                    return len(list(entries))
+    except Exception:
+        pass
+    return None
+
+
+@router.get("/count")
+async def get_video_count(url: str = Query("")):
+    """Return estimated video count for a URL."""
+    if not url:
+        return JSONResponse({"count": None})
+    loop = asyncio.get_event_loop()
+    count = await loop.run_in_executor(_executor, _fetch_video_count, url)
+    return JSONResponse({"count": count})
 
 
 @router.get("/search", response_class=HTMLResponse)

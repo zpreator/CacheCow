@@ -21,7 +21,7 @@
                         display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;">
                 {{ video.title }}
             </div>
-            <div style="display:flex;align-items:center;justify-content:space-between;gap:0.4rem;margin-bottom:0.3rem;">
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:0.4rem;margin-bottom:0.4rem;">
                 <span style="font-size:0.75rem;color:var(--pico-muted-color);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
                     {{ video.uploader }}
                 </span>
@@ -42,22 +42,70 @@
                     {% endif %}
                 </div>
             </div>
-            <div style="display:flex;gap:0.4rem;align-items:center;margin-bottom:0.3rem;">
-                <form hx-post="/discover/download"
-                      hx-target="#status-{{ loop.index }}"
-                      hx-swap="innerHTML"
-                      style="flex:1;margin:0;">
-                    <input type="hidden" name="url" value="{{ video.url }}">
-                    <button type="submit" class="outline"
-                            style="padding:0.2rem 0.6rem;font-size:0.78rem;margin:0;width:100%;">
-                        Download
-                    </button>
-                </form>
+
+            {# Download button → tag popover → submit #}
+            <div style="position:relative;margin-bottom:0.3rem;">
+                <button type="button" class="outline"
+                        style="padding:0.2rem 0.6rem;font-size:0.78rem;margin:0;width:100%;"
+                        onclick="openTagPicker({{ loop.index }}, event)">
+                    Download
+                </button>
+                <div id="tag-picker-{{ loop.index }}"
+                     style="display:none;position:absolute;z-index:50;top:calc(100% + 4px);left:0;right:0;
+                            background:var(--pico-card-background-color);
+                            border:1px solid var(--pico-muted-border-color);
+                            border-radius:var(--pico-border-radius);padding:0.6rem;
+                            box-shadow:0 4px 12px rgba(0,0,0,0.4);">
+                    <div style="font-size:0.78rem;font-weight:600;margin-bottom:0.4rem;">Save to tag</div>
+                    <div class="tag-select-wrapper">
+                        <select id="tag-select-{{ loop.index }}"
+                                style="margin:0 0 0.4rem;padding:0.25rem 0.4rem;font-size:0.78rem;width:100%;"
+                                onchange="handleDiscoverTagSelect(this, {{ loop.index }})">
+                            {% for tag in tags %}
+                            <option value="{{ tag.id }}">{{ tag.name }}</option>
+                            {% endfor %}
+                            <option value="__new__">+ New tag…</option>
+                        </select>
+                        <div id="tag-inline-{{ loop.index }}"
+                             style="display:none;gap:0.3rem;align-items:center;margin-bottom:0.4rem;">
+                            <input type="text" placeholder="Tag name"
+                                   style="flex:1;margin:0;padding:0.2rem 0.4rem;font-size:0.78rem;"
+                                   onkeydown="if(event.key==='Enter'){event.preventDefault();discoverAddTag(this,{{ loop.index }})}">
+                            <button type="button" class="outline"
+                                    style="margin:0;padding:0.2rem 0.4rem;font-size:0.78rem;"
+                                    onclick="discoverAddTag(this.previousElementSibling,{{ loop.index }})">Add</button>
+                            <button type="button" class="outline secondary"
+                                    style="margin:0;padding:0.2rem 0.4rem;font-size:0.78rem;"
+                                    onclick="discoverCancelTag({{ loop.index }})">✕</button>
+                        </div>
+                    </div>
+                    <form hx-post="/discover/download"
+                          hx-target="#status-{{ loop.index }}"
+                          hx-swap="innerHTML"
+                          id="dl-form-{{ loop.index }}"
+                          style="margin:0;"
+                          onsubmit="closeTagPicker({{ loop.index }})">
+                        <input type="hidden" name="url" value="{{ video.url }}">
+                        <input type="hidden" name="tag_id" id="tag-id-{{ loop.index }}" value="{{ tags[0].id if tags else '' }}">
+                        <div style="display:flex;gap:0.3rem;">
+                            <button type="submit" style="flex:1;margin:0;padding:0.25rem 0.5rem;font-size:0.78rem;">
+                                Confirm
+                            </button>
+                            <button type="button" class="outline secondary"
+                                    style="margin:0;padding:0.25rem 0.5rem;font-size:0.78rem;"
+                                    onclick="closeTagPicker({{ loop.index }})">Cancel</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <div style="margin-bottom:0.3rem;">
                 <a href="{{ video.url }}" target="_blank" rel="noopener" class="outline secondary"
-                   role="button" style="padding:0.2rem 0.6rem;font-size:0.78rem;margin:0;white-space:nowrap;">
-                    YouTube
+                   role="button" style="display:block;text-align:center;padding:0.2rem 0.6rem;font-size:0.78rem;margin:0;">
+                    Watch on YouTube
                 </a>
             </div>
+
             {% if video.channel_url and video.uploader %}
             <a href="/channels/add?url={{ video.channel_url | urlencode }}"
                role="button"
@@ -72,6 +120,71 @@
     </div>
     {% endfor %}
 </div>
+
+
+<script>
+function openTagPicker(idx, event) {
+    // Close any other open pickers first
+    document.querySelectorAll('[id^="tag-picker-"]').forEach(function(el) {
+        if (el.id !== 'tag-picker-' + idx) el.style.display = 'none';
+    });
+    const picker = document.getElementById('tag-picker-' + idx);
+    picker.style.display = picker.style.display === 'none' ? 'block' : 'none';
+    event.stopPropagation();
+}
+
+function closeTagPicker(idx) {
+    document.getElementById('tag-picker-' + idx).style.display = 'none';
+}
+
+document.addEventListener('click', function(e) {
+    if (!e.target.closest('[id^="tag-picker-"]') && !e.target.closest('button[onclick^="openTagPicker"]')) {
+        document.querySelectorAll('[id^="tag-picker-"]').forEach(function(el) {
+            el.style.display = 'none';
+        });
+    }
+});
+
+function handleDiscoverTagSelect(select, idx) {
+    if (select.value !== '__new__') {
+        document.getElementById('tag-id-' + idx).value = select.value;
+        document.getElementById('tag-inline-' + idx).style.display = 'none';
+        return;
+    }
+    select.dataset.prevValue = select.options[0]?.value || '';
+    document.getElementById('tag-inline-' + idx).style.display = 'flex';
+    document.getElementById('tag-inline-' + idx).querySelector('input').focus();
+}
+
+async function discoverAddTag(input, idx) {
+    const name = input.value.trim();
+    if (!name) return;
+    const formData = new FormData();
+    formData.append('name', name);
+    const resp = await fetch('/tags/json', { method: 'POST', body: formData });
+    const data = await resp.json();
+    if (data.id) {
+        const select = document.getElementById('tag-select-' + idx);
+        const newOpt = document.createElement('option');
+        newOpt.value = data.id;
+        newOpt.textContent = data.name;
+        select.insertBefore(newOpt, select.querySelector('option[value="__new__"]'));
+        select.value = data.id;
+        document.getElementById('tag-id-' + idx).value = data.id;
+    }
+    input.value = '';
+    document.getElementById('tag-inline-' + idx).style.display = 'none';
+}
+
+function discoverCancelTag(idx) {
+    const select = document.getElementById('tag-select-' + idx);
+    document.getElementById('tag-inline-' + idx).style.display = 'none';
+    if (select.dataset.prevValue) {
+        select.value = select.dataset.prevValue;
+        document.getElementById('tag-id-' + idx).value = select.dataset.prevValue;
+    }
+}
+</script>
 {% else %}
 <p style="color:var(--pico-muted-color);font-size:0.9rem;">No results found for "{{ q }}".</p>
 {% endif %}

@@ -127,7 +127,7 @@ def download_single_channel(channel_id: int):
         db.close()
 
 
-def download_single_video(url: str):
+def download_single_video(url: str, tag_name: str | None = None, log_id: int | None = None):
     """Download a single video URL without a channel subscription."""
     db = SessionLocal()
     try:
@@ -135,8 +135,9 @@ def download_single_video(url: str):
         if not settings:
             return
 
-        other_tag = db.query(Tag).filter(Tag.name == "other").first()
-        tag_name = other_tag.name if other_tag else "other"
+        if not tag_name:
+            other_tag = db.query(Tag).filter(Tag.name == "other").first()
+            tag_name = other_tag.name if other_tag else "other"
 
         video_info = _quick_video_info(url)
         uploader = video_info.get("uploader", "")
@@ -155,9 +156,21 @@ def download_single_video(url: str):
         _set_progress(display_name, 0, 1, phase="checking")
         logger.info(f"[DOWNLOAD] Starting one-off download: {display_name} ({url})")
 
-        log = DownloadLog(channel_id=None, status="running", label=display_name)
-        db.add(log)
-        db.commit()
+        # Reuse pre-created log if provided, otherwise create one
+        if log_id:
+            log = db.query(DownloadLog).filter(DownloadLog.id == log_id).first()
+            if log:
+                log.status = "running"
+                log.label = display_name
+                db.commit()
+            else:
+                log = DownloadLog(channel_id=None, status="running", label=display_name)
+                db.add(log)
+                db.commit()
+        else:
+            log = DownloadLog(channel_id=None, status="running", label=display_name)
+            db.add(log)
+            db.commit()
 
         try:
             count = download_channel(_OneOffChannel(), settings, session_factory=SessionLocal, one_off=True, log_id=log.id)

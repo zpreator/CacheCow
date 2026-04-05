@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CacheCow - Setup</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css">
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+    <main class="container login-container">
+        <article>
+            <header>
+                <h2>Welcome to CacheCow</h2>
+                <p style="font-size:0.9rem;color:var(--pico-muted-color);margin:0;">
+                    Choose a username and password to get started.
+                </p>
+            </header>
+            {% if errors %}
+            {% for e in errors %}
+            <p class="error">{{ e }}</p>
+            {% endfor %}
+            {% endif %}
+            <form method="post" action="/setup">
+                <label for="username">Username</label>
+                <input type="text" id="username" name="username" required autofocus autocomplete="username">
+                <label for="password">Password</label>
+                <input type="password" id="password" name="password" required autocomplete="new-password">
+                <label for="confirm_password">Confirm Password</label>
+                <input type="password" id="confirm_password" name="confirm_password" required autocomplete="new-password">
+                <button type="submit">Create Account</button>
+            </form>
+        </article>
+    </main>
+</body>
+</html>
