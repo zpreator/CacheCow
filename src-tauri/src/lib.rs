@@ -1,4 +1,5 @@
 use std::net::TcpStream;
+use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use tauri::Manager;
 
@@ -28,12 +29,15 @@ pub fn run() {
             {
                 use tauri_plugin_shell::ShellExt;
 
-                // Spawn the bundled Python sidecar
+                // Spawn the bundled Python sidecar and hold onto the child so we can kill it on exit
                 let sidecar = app
                     .shell()
                     .sidecar("cachecow-server")
                     .expect("cachecow-server sidecar not found");
-                sidecar.spawn().expect("failed to spawn cachecow-server");
+                let (_, child) = sidecar.spawn().expect("failed to spawn cachecow-server");
+
+                // Store the child in app state so the on_window_event handler can reach it
+                app.manage(Arc::new(Mutex::new(Some(child))));
             }
 
             // Wait for the server in a background thread, then navigate
@@ -50,6 +54,21 @@ pub fn run() {
             });
 
             Ok(())
+        })
+        .on_window_event(|window, event| {
+            if let tauri::WindowEvent::Destroyed = event {
+                #[cfg(not(debug_assertions))]
+                {
+                    use tauri_plugin_shell::process::CommandChild;
+                    if let Some(child_state) = window.app_handle().try_state::<Arc<Mutex<Option<CommandChild>>>>() {
+                        if let Ok(mut guard) = child_state.lock() {
+                            if let Some(child) = guard.take() {
+                                let _ = child.kill();
+                            }
+                        }
+                    }
+                }
+            }
         })
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

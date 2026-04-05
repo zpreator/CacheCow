@@ -9,6 +9,7 @@ from pathlib import Path
 
 import yt_dlp
 
+from app.logging_config import logger
 from app.paths import ARCHIVE_FILE as _ARCHIVE_FILE_PATH
 ARCHIVE_FILE = str(_ARCHIVE_FILE_PATH)
 
@@ -22,11 +23,11 @@ class Logger:
 
     def warning(self, msg):
         if "--break-on-existing" not in msg:
-            print(f"[WARNING] {msg}")
+            logger.warning(f"[WARNING] {msg}")
 
     def error(self, msg):
         if "--break-on-existing" not in msg:
-            print(f"[ERROR] {msg}")
+            logger.error(f"[ERROR] {msg}")
 
 
 def clean_metadata(file_path, creator_name, video_title):
@@ -76,18 +77,23 @@ def _save_video_to_db(session_factory, channel_id, info, filename, file_size, lo
             db.add(video)
         db.commit()
     except Exception as e:
-        print(f"[ERROR] Failed to save video to DB: {e}")
+        logger.error(f"[ERROR] Failed to save video to DB: {e}")
     finally:
         if db is not None:
             db.close()
 
 
 def make_hook(counter: list, channel_id=None, session_factory=None, log_id=None):
-    """Return a progress hook that increments counter[0] on each completed download."""
-    from app import state
-    last_info = {}  # capture full info_dict from "downloading" phase
+    """Return (progress_hook, postprocessor_hook) sharing state.
 
-    def hook(d):
+    progress_hook    — updates the live queue UI; counts only single-stream downloads
+                       (fragment files like .f234.mp4 are skipped).
+    postprocessor_hook — counts and saves to DB after ffmpeg finishes merging streams.
+    """
+    from app import state
+    last_info = {}  # shared: captures rich metadata during the "downloading" phase
+
+    def progress_hook(d):
         if d["status"] == "downloading":
             info = d.get("info_dict", {})
             if info.get("title"):
@@ -109,18 +115,51 @@ def make_hook(counter: list, channel_id=None, session_factory=None, log_id=None)
                 pass
         elif d["status"] == "finished":
             filename = d.get("filename", "")
+            # Stream fragments (.f234.mp4, .f614.mp4) are intermediate files —
+            # the postprocessor_hook handles the merged result.
+            if re.search(r'\.f\d+\.[^.]+$', filename):
+                logger.info(f"[POSTPROCESS] Fragment downloaded: {filename}")
+                return
             if ".mp4" in filename or ".webm" in filename or ".mkv" in filename:
                 counter[0] += 1
-                # Strip yt-dlp stream fragment suffix (e.g. .f137) to get the final merged path
-                final_filename = re.sub(r'\.f\d+(?=\.[^.]+$)', '', filename)
-                print(f"[DOWNLOADED] {final_filename}")
-                # Clear current video so the queue page doesn't show stale progress
+                logger.info(f"[DOWNLOADED] {filename}")
                 state.set_current_video(None)
                 if session_factory:
-                    # Merge: prefer full info captured during downloading, fill gaps from finished
                     info = {**d.get("info_dict", {}), **last_info}
-                    _save_video_to_db(session_factory, channel_id, info, final_filename, d.get("downloaded_bytes"), log_id=log_id)
-    return hook
+                    _save_video_to_db(session_factory, channel_id, info, filename, d.get("downloaded_bytes"), log_id=log_id)
+
+    def postprocessor_hook(d):
+        pp_name = d.get("postprocessor", "unknown")
+        status = d.get("status", "unknown")
+        info = d.get("info_dict", {})
+
+        # Log every postprocessor event so we can see exactly what fires
+        logger.info(f"[POSTPROCESS] {pp_name} — {status}")
+
+        if status == "started":
+            requested = info.get("requested_downloads") or []
+            input_files = [r.get("filepath") or r.get("filename", "") for r in requested]
+            if input_files:
+                logger.info(f"[POSTPROCESS] Input files: {input_files}")
+
+        if status != "finished":
+            return
+        if "Merger" not in pp_name:
+            return
+
+        filename = info.get("filepath") or info.get("_filename", "")
+        logger.info(f"[POSTPROCESS] Merged output: {filename!r}")
+        if not filename:
+            return
+        counter[0] += 1
+        logger.info(f"[DOWNLOADED] {filename}")
+        state.set_current_video(None)
+        if session_factory:
+            merged = {**info, **last_info}
+            file_size = info.get("filesize") or info.get("filesize_approx")
+            _save_video_to_db(session_factory, channel_id, merged, filename, file_size, log_id=log_id)
+
+    return progress_hook, postprocessor_hook
 
 
 def make_tiktok_hook(counter: list, channel_id=None, session_factory=None, log_id=None):
@@ -145,7 +184,7 @@ def make_tiktok_hook(counter: list, channel_id=None, session_factory=None, log_i
             filename = d.get("filename", "")
             if ".mp4" in filename:
                 counter[0] += 1
-                print(f"[DOWNLOADED] {filename}")
+                logger.info(f"[DOWNLOADED] {filename}")
                 if session_factory:
                     info = d.get("info_dict", {})
                     _save_video_to_db(session_factory, channel_id, info, filename, d.get("downloaded_bytes"), log_id=log_id)
@@ -157,9 +196,9 @@ def make_tiktok_hook(counter: list, channel_id=None, session_factory=None, log_i
                     creator_name, video_title = parts
                     clean_metadata(str(filepath), creator_name.strip(), stem.strip())
                 else:
-                    print(f"[WARNING] Unexpected filename format: {stem}")
+                    logger.warning(f"[WARNING] Unexpected filename format: {stem}")
             except Exception as e:
-                print(f"[ERROR] Cleaning metadata for {filepath}: {e}")
+                logger.error(f"[ERROR] Cleaning metadata for {filepath}: {e}")
     return hook
 
 
@@ -245,15 +284,18 @@ def download_channel(channel, settings, session_factory=None, one_off=False, log
     """
     counter = [0]  # mutable container so hook can increment it
 
+    ffmpeg_loc = _find_ffmpeg_location()
+    logger.info(f"[DOWNLOAD] ffmpeg location: {ffmpeg_loc!r}")
+
     # Validate download path before invoking yt-dlp
     download_dir = Path(settings.download_path) if settings.download_path else None
     if not download_dir:
-        print("[ERROR] No download path configured. Set it in Settings.")
+        logger.error("[ERROR] No download path configured. Set it in Settings.")
         return 0
     try:
         download_dir.mkdir(parents=True, exist_ok=True)
     except Exception as e:
-        print(f"[ERROR] Cannot create download directory '{download_dir}': {e}")
+        logger.error(f"[ERROR] Cannot create download directory '{download_dir}': {e}")
         return 0
 
     for attempt in range(3):
@@ -297,7 +339,8 @@ def download_channel(channel, settings, session_factory=None, one_off=False, log
                 postprocessors = [
                     {"key": "EmbedThumbnail"},
                 ]
-                hook_func = make_tiktok_hook(counter, channel_id=channel_id, session_factory=session_factory, log_id=log_id)
+                progress_hook = make_tiktok_hook(counter, channel_id=channel_id, session_factory=session_factory, log_id=log_id)
+                pp_hook = None
             else:
                 fmt = "bestvideo[height<=1080][vcodec^=avc1]+bestaudio[acodec^=mp4a]/bestvideo[height<=1080]+bestaudio[acodec^=mp4a]/bestvideo[height<=1080]+bestaudio/best"
                 postprocessors = [
@@ -307,7 +350,7 @@ def download_channel(channel, settings, session_factory=None, one_off=False, log
                     },
                     {"key": "FFmpegMetadata"},
                 ]
-                hook_func = make_hook(counter, channel_id=channel_id, session_factory=session_factory, log_id=log_id)
+                progress_hook, pp_hook = make_hook(counter, channel_id=channel_id, session_factory=session_factory, log_id=log_id)
 
             ydl_opts = {
                 "format": fmt,
@@ -318,7 +361,8 @@ def download_channel(channel, settings, session_factory=None, one_off=False, log
                 "max_sleep_interval": settings.random_interval_upper,
                 "outtmpl": f"{settings.download_path}/{tag_name}/%(uploader)s/%(playlist)s/%(uploader)s - %(title)s.%(ext)s",
                 "match_filter": lambda x: match_filter(x, keywords, excludes, max_duration),
-                "progress_hooks": [hook_func],
+                "progress_hooks": [progress_hook],
+                "postprocessor_hooks": [pp_hook] if pp_hook else [],
                 "writethumbnail": True,
                 "prefer_ffmpeg": True,
                 "embedthumbnail": True,
@@ -334,7 +378,6 @@ def download_channel(channel, settings, session_factory=None, one_off=False, log
                 "quiet": True,
                 "noprogress": True,
             }
-            ffmpeg_loc = _find_ffmpeg_location()
             if ffmpeg_loc:
                 ydl_opts["ffmpeg_location"] = ffmpeg_loc
 
@@ -343,9 +386,9 @@ def download_channel(channel, settings, session_factory=None, one_off=False, log
             break
         except Exception as e:
             if "--break-on-existing" not in str(e):
-                print(f"[ERROR] {channel.name}: {e}")
+                logger.error(f"[ERROR] {channel.name}: {e}")
             if "not a bot" in str(e):
-                print("[WARNING] YouTube bot detection triggered, sleeping 5 minutes before retry...")
+                logger.warning("[WARNING] YouTube bot detection triggered, sleeping 5 minutes before retry...")
                 time.sleep(300)
 
     return counter[0]
@@ -456,7 +499,7 @@ def _search_youtube(query: str, count: int = 10) -> list[dict]:
                     seen_names.add(name)
                     results.append({"name": name, "channel_url": channel_url, "image": image})
     except Exception as e:
-        print(f"[ERROR] YouTube search failed: {e}")
+        logger.error(f"[ERROR] YouTube search failed: {e}")
     return results
 
 
@@ -494,5 +537,5 @@ def search_youtube_videos(query: str, count: int = 20) -> list[dict]:
                         "view_count": view_count,
                     })
     except Exception as e:
-        print(f"[ERROR] YouTube video search failed: {e}")
+        logger.error(f"[ERROR] YouTube video search failed: {e}")
     return results

@@ -113,6 +113,11 @@ jobs:
         if: runner.os == 'macOS'
         run: chmod +x src-tauri/binaries/*
 
+      - name: Extract version from tag
+        id: version
+        shell: bash
+        run: echo "value=${GITHUB_REF_NAME#v}" >> $GITHUB_OUTPUT
+
       - uses: dtolnay/rust-toolchain@stable
 
       - name: Rust cache
@@ -126,6 +131,7 @@ jobs:
         with:
           releaseId: ${{ needs.create-release.outputs.release_id }}
           includeUpdaterJson: false
+          args: --config '{"version":"${{ steps.version.outputs.value }}"}'
 
       - name: Upload stable-named macOS asset
         if: runner.os == 'macOS'
