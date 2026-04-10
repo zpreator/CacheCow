@@ -1,96 +1,96 @@
+# CacheCow
 
-# YouTube Downloader App
+CacheCow is an app for automatically downloading and watching videos from various platforms. No recommendations, no rabbit holes. Save exactly the videos you want to watch — nothing more, nothing less.
 
-This is a YouTube downloader app that can automatically download videos from your subscribed YouTube channels or manually specified channels. You can also manage downloaded content through a web interface built with Python and Streamlit.
+Optionally use another tool like plex or jellyfin to watch the videos anywhere. [Instructions Here](#plex-integration)
 
-## 🚀 In Action
+I use this app primarily to watch youtube videos on my TV through plex, where plex media server and Cache Cow are both running on a server.
 
-For every channel (either manually added or synced with youtube) control how and when videos can be downloaded.
+## Installation
 
-Use keywords to include or exclude videos by title.
+Download page: [CacheCow Download Site](https://zpreator.github.io/cachecow/)
 
-![Subscription Example](images/example_1.png)
+### Desktop App (macOS / Windows)
 
-Separate channel downloads into categories with tags. Good for Plex integration (documentation coming soon)
+> ⚠️ **Caution:** These apps are not signed and will be blocked by the OS by default. Future updates to the app will allow it, but for now there are workarounds for running them.
 
-![Categories](images/example_2.png)
-![Categories Folders](images/image.png)
+For the easiest installation and use.
 
-Example Plex setup with categories:
+### Docker
 
-![Plex](images/plex.png)
-![Plex Recently Added](images/plex_2.png)
-## 🗂️ Installation
+Use this option if you intend to access the application through the browser, or from another machine.
+```cmd
+curl -sSL https://github.com/zpreator/CacheCow/releases/latest/download/install.sh | bash
+```
 
-### 1. Install Docker & Docker Compose
+### Python
 
-If you don’t already have Docker installed, please follow the instructions in the official Docker documentation:
+You can also run the app without docker by calling python directly. Follow these steps to install and run the backend and use a browser to access the UI.
 
-- **Docker:** https://docs.docker.com/get-docker/
-- **Docker Compose:** https://docs.docker.com/compose/install/
+In command prompt/terminal (run one at a time):
+```cmd
+git clone https://github.com/zpreator/CacheCow.git
+cd CacheCow
+python -m venv .venv
 
-### 2. Clone the Project
+# (Mac/Linux)
+source .venv/bin/activate
+# (Windows)
+.venv/Scripts/activate
 
-Clone the repository to your local machine:
+python -m pip install --upgrade pip
+pip install -r requirements.txt
+python run.py
+```
 
-```git clone https://github.com/zpreator/CacheCow.git```
-```cd CacheCow```
 
-### 3. Set Up the Docker Environment
+## Getting Started
 
-Run this setup script to configure the docker environment (it will ask you for your download path and what port to serve the web app)
+To get started, download a video! Search for a video on the discover tab and click 'download'. After that, try setting up a channel which will run automatically at the interval specified in settings.
 
-```bash setup.sh```
+### Library
 
-This command will build and start all necessary services, including:
+Page showing all videos currently downloaded through the app. Searchable by keyword and tags filtering with sorting.
 
-- A Streamlit app (for the web interface)
-- The YouTube downloader script
-- The cleaner script
+![Library](images/library.png)
 
-### 4. Access the Web Interface
+### Discover
 
-Once the app is running, open your browser and navigate to (address or port may be different depending on your setup):
+Search youtube for specific videos, or use the 'Download by URL' dropdown to download any video on demand. Use the subscribe button to add that channel to your subscribed [channels](#channels)
 
-```http://localhost:8501```
+![Discover](images/discover.png)
 
-OR if accessing from another computer
+### Queue
 
-```http://<local_ip_address>:<port>```
+Shows the download status and log of previously downloaded videos
 
-You’ll be able to interact with the app here!
+![Queue](images/queue.png)
 
-### 5. Set Up Your Configuration
+### Channels
 
-To download content from YouTube, you’ll need to configure the app. Follow the instructions in the [YouTube API Setup Guide](./youtube-api.md) for how to generate your `client_secret.json` and configure OAuth for automatic subscription syncing.
+Manage your subscribed channels. Use the + Add Channel to add a new channel, edit existing channels.
 
-If you prefer not to set up OAuth, you can manually add YouTube channels directly from the web interface.
+![Channels](images/channels.png)
 
-### 6. Managing Downloads
+## Configuration
 
-- Add YouTube channels via the web interface by pasting the channel URL.
-- The app will download the latest videos from the added channels and store them in the specified location on your machine.
+## Plex Integration
 
-## ⚙️ How the App Works
+1. In CacheCow, note the download path and ensure the plex server has access to it. In CacheCow go to settings and scroll down to the download path to view it.
 
-This app leverages **yt-dlp**, a command-line tool for downloading videos, and a Streamlit web interface for ease of use.
+2. Optionally use tags to segment media, like 'favorites' or 'gaming', resulting in {download_path}/favorites. Otherwise, the default will be {download_path}/other
 
-The app will:
-1. Use the YouTube Data API (if configured) to fetch the list of videos from your subscriptions.
-2. Download videos with yt-dlp based on your chosen settings.
-3. Organize downloaded content by the channel and video name.
-4. Provide you with a simple interface to manage, update, and delete channels.
+3. In plex, select your server and click the plus icon to add a library
+![](images/plex-instructions1.png)
 
-## 📝 Notes
+4. Select 'Other Videos' and give it a name like 'YouTube Favorites'
+![](images/plex-instructions2.png)
 
-- The first time you run the app, it may ask you to authenticate with Google to access YouTube data. This is optional, and you can manually add channels if preferred.
-- You can change the download folder path in the configuration files (as long as it is within the original file path specified during setup).
-- To stop the app, use `docker-compose down` to bring down the Docker containers.
+5. Add a media path matching your download path from CacheCow. Anything under that path will be scanned
+![](images/plex-instructions3.png)
 
-## 🛠️ Troubleshooting
+6. Save changes and thats it! Youtube channels you have subscribed to in CacheCow will automatically appear in plex in a dedicated library.
 
-If you encounter issues with Docker or Docker Compose, please ensure you have the latest versions installed. You can also refer to the Docker troubleshooting guide here: https://docs.docker.com/config/daemon/
+## Future Features
 
----
-
-Happy downloading! 😊
+- [ ] Code signing and notarization (macOS & Windows)

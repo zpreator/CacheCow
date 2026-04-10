@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>CacheCow</title>
+    <link rel="icon" type="image/x-icon" href="/static/cow-head.ico">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css">
     <link rel="stylesheet" href="/static/css/style.css">
     <script src="https://unpkg.com/htmx.org@2.0.4"></script>
@@ -12,7 +13,10 @@
     <div class="layout">
         <aside class="sidebar">
             <header>
-                <h2>CacheCow</h2>
+                <h2 style="display:flex;align-items:center;gap:0.5rem;">
+                    <img src="/static/cow-head.png" alt="" style="width:1.5rem;height:1.5rem;object-fit:contain;">
+                    CacheCow
+                </h2>
             </header>
             <ul>
                 <li><a href="/" {% if active_page == "library" %}class="active"{% endif %}>Library</a></li>
