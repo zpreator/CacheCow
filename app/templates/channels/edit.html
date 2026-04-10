@@ -87,10 +87,6 @@
                    onchange="document.getElementById('custom-settings').style.display = this.checked ? 'none' : 'grid'">
             Use Global Settings
         </label>
-        <label>
-            <input type="checkbox" name="download_all" role="switch" {% if channel.download_all %}checked{% endif %}>
-            Download All
-        </label>
     </div>
 
     <div id="custom-settings" class="form-grid"
@@ -134,6 +130,37 @@
                     {% endfor %}
                 {% endif %}
                 <input type="text" placeholder="Type & press Enter" onkeydown="handleKeywordInput(event, this)">
+            </div>
+        </div>
+
+        <!-- Download All — requires explicit confirmation -->
+        <div style="grid-column:1/-1;padding-top:0.75rem;border-top:1px solid var(--pico-muted-border-color);">
+            <label style="display:flex;align-items:center;gap:0.6rem;cursor:pointer;margin:0;">
+                <input type="checkbox" name="download_all" id="download-all-checkbox" role="switch"
+                       {% if channel.download_all %}checked{% endif %}
+                       onchange="onDownloadAllToggle(this)">
+                <span>
+                    Download All
+                    <small style="display:block;font-weight:400;color:var(--pico-muted-color);margin-top:0.1rem;">
+                        Downloads every video in the channel or playlist, ignoring the Max Videos limit.
+                    </small>
+                </span>
+            </label>
+            <div id="download-all-warning"
+                 style="display:{% if channel.download_all %}block{% else %}none{% endif %};margin-top:0.75rem;
+                        background:color-mix(in srgb,var(--pico-color-amber-500) 12%,transparent);
+                        border:1px solid var(--pico-color-amber-500);border-radius:var(--pico-border-radius);
+                        padding:0.75rem;">
+                <div style="font-weight:600;margin-bottom:0.4rem;">⚠ This will download everything</div>
+                <div id="download-all-count" style="font-size:0.85rem;color:var(--pico-muted-color);margin-bottom:0.6rem;">
+                    {% if channel.download_all %}Already enabled — video count not re-estimated on edit.{% else %}Estimating video count…{% endif %}
+                </div>
+                <label style="display:flex;align-items:flex-start;gap:0.5rem;font-size:0.875rem;cursor:pointer;margin:0;">
+                    <input type="checkbox" id="download-all-confirm"
+                           {% if channel.download_all %}checked{% endif %}
+                           style="margin-top:2px;flex-shrink:0;" onchange="setDirty(true)">
+                    <span>I understand this may download a large number of videos and could take a long time.</span>
+                </label>
             </div>
         </div>
     </div>
@@ -260,9 +287,53 @@ async function uploadImage(fileInput) {
 }
 document.addEventListener('click', e => { if (!e.target.closest('.image-edit-wrapper')) closeAllPopovers(); });
 
+let _countAbort = null;
+
+async function onDownloadAllToggle(checkbox) {
+    const warning = document.getElementById("download-all-warning");
+    const countEl = document.getElementById("download-all-count");
+    const confirm = document.getElementById("download-all-confirm");
+
+    if (!checkbox.checked) {
+        warning.style.display = "none";
+        confirm.checked = false;
+        setDirty(true);
+        return;
+    }
+
+    warning.style.display = "block";
+    confirm.checked = false;
+    countEl.textContent = "Estimating video count…";
+    setDirty(true);
+
+    const url = document.querySelector('input[name="link"]').value.trim();
+    if (!url) {
+        countEl.textContent = "Save a URL first to see an estimate.";
+        return;
+    }
+
+    if (_countAbort) _countAbort.abort();
+    _countAbort = new AbortController();
+    try {
+        const resp = await fetch("/channels/count?url=" + encodeURIComponent(url),
+                                 { signal: _countAbort.signal });
+        const data = await resp.json();
+        if (data.count !== null && data.count !== undefined) {
+            countEl.innerHTML = `This channel has approximately <strong>${data.count} videos</strong>.`;
+        } else {
+            countEl.textContent = "Could not estimate count — the channel may be very large.";
+        }
+    } catch (e) {
+        if (e.name !== "AbortError") countEl.textContent = "Could not estimate count.";
+    }
+}
+
 // Dirty-state tracking
 function setDirty(val) {
-    document.getElementById('save-btn').disabled = !val;
+    const btn = document.getElementById('save-btn');
+    const downloadAllOn = document.getElementById("download-all-checkbox")?.checked;
+    const confirmed = document.getElementById("download-all-confirm")?.checked;
+    btn.disabled = !val || (downloadAllOn && !confirmed);
 }
 (function() {
     const form = document.querySelector('form[hx-put]');

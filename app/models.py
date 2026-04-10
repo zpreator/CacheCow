@@ -53,6 +53,8 @@ class Settings(Base):
     clean_threshold: Mapped[int] = mapped_column(default=90)
     # Overrides APP_PASS_HASH env var when set
     password_hash: Mapped[Optional[str]] = mapped_column(String(128), nullable=True)
+    username: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    setup_complete: Mapped[bool] = mapped_column(default=False)
 
 
 class DownloadLog(Base):
@@ -97,20 +99,28 @@ def ensure_defaults(db):
         db.add(Tag(name="other"))
         db.commit()
     if not db.query(Settings).first():
-        db.add(Settings(download_path=app_settings.download_path))
+        from app.paths import DEFAULT_DOWNLOAD_DIR
+        db.add(Settings(download_path=str(DEFAULT_DOWNLOAD_DIR)))
         db.commit()
 
     # Runtime column migrations for SQLite (create_all won't add columns to existing tables)
     _add_column_if_missing(db, "videos", "uploader", "VARCHAR(500)")
     _add_column_if_missing(db, "videos", "download_log_id", "INTEGER")
     _add_column_if_missing(db, "download_log", "label", "VARCHAR(500)")
+    _add_column_if_missing(db, "settings", "username", "VARCHAR(100)")
+    _add_column_if_missing(db, "settings", "setup_complete", "BOOLEAN DEFAULT 0")
+    db.expire_all()
 
 
 def _add_column_if_missing(db, table: str, column: str, col_type: str):
     from sqlalchemy import text
-    result = db.execute(text(f"PRAGMA table_info({table})")).fetchall()
-    existing = {row[1] for row in result}
-    if column not in existing:
-        db.execute(text(f"ALTER TABLE {table} ADD COLUMN {column} {col_type}"))
-        db.commit()
-        print(f"[MIGRATE] Added column {table}.{column}")
+    try:
+        result = db.execute(text(f"PRAGMA table_info({table})")).fetchall()
+        existing = {row[1] for row in result}
+        if column not in existing:
+            db.execute(text(f"ALTER TABLE {table} ADD COLUMN {column} {col_type}"))
+            db.commit()
+            print(f"[MIGRATE] Added column {table}.{column}")
+    except Exception as e:
+        print(f"[MIGRATE] Failed to add column {table}.{column}: {e}")
+        db.rollback()

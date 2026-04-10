@@ -1,25 +1,16 @@
-import json
-import os
-import time
 import random
+import time
 
-import redis
+from sqlalchemy import func
 
-from app.celery_app import celery
+from app import state
 from app.database import SessionLocal
+from app.logging_config import logger
 from app.models import Channel, DownloadLog, Settings, Tag
 from app.services.downloader import clean_fragments, download_channel, _quick_video_info
 
-REDIS_PROGRESS_KEY = "download:progress"
-REDIS_TASK_ID_KEY = "download:task_id"
-_REDIS_URL = os.environ.get("REDIS_URL", "redis://localhost:6379/0")
 
-
-def _get_redis():
-    return redis.Redis.from_url(_REDIS_URL)
-
-
-def _set_progress(r, name, index, total, status="running", channel_id=None, phase="checking", sleep_seconds=None):
+def _set_progress(name, index, total, status="running", channel_id=None, phase="checking", sleep_seconds=None):
     data = {
         "name": name,
         "index": index,
@@ -30,18 +21,15 @@ def _set_progress(r, name, index, total, status="running", channel_id=None, phas
     }
     if sleep_seconds is not None:
         data["sleep_seconds"] = sleep_seconds
-    r.set(REDIS_PROGRESS_KEY, json.dumps(data))
+    state.set_progress(**data)
 
 
-@celery.task(bind=True)
-def download_all_channels(self):
-    r = _get_redis()
-    r.set(REDIS_TASK_ID_KEY, self.request.id)
+def download_all_channels():
     db = SessionLocal()
     try:
         settings = db.query(Settings).first()
         if not settings or not settings.download_path:
-            print("No download path configured, skipping.")
+            logger.info("No download path configured, skipping.")
             return
 
         channels = (
@@ -52,57 +40,56 @@ def download_all_channels(self):
         )
         total = len(channels)
         if total == 0:
-            print("No subscribed channels.")
+            logger.info("No subscribed channels.")
             return
 
         for i, channel in enumerate(channels):
-            # Clear stale video info from previous channel
-            r.delete("download:current_video")
-            _set_progress(r, channel.name, i, total, channel_id=channel.id, phase="checking")
-            print(f"[DOWNLOAD] Starting: {channel.name} ({i+1}/{total})")
+            if state.is_cancelled():
+                logger.info("[DOWNLOAD] Download cancelled by user.")
+                break
+
+            state.set_current_video(None)
+            _set_progress(channel.name, i, total, channel_id=channel.id, phase="checking")
+            logger.info(f"[DOWNLOAD] Starting: {channel.name} ({i+1}/{total})")
 
             log = DownloadLog(channel_id=channel.id, status="running")
             db.add(log)
             db.commit()
 
             try:
-                count = download_channel(channel, settings, session_factory=SessionLocal, redis_client=r, log_id=log.id)
+                count = download_channel(channel, settings, session_factory=SessionLocal, log_id=log.id)
                 log.status = "completed"
                 log.videos_downloaded = count
-                print(f"[DOWNLOAD] Completed: {channel.name} — {count} video(s) downloaded")
+                logger.info(f"[DOWNLOAD] Completed: {channel.name} — {count} video(s) downloaded")
             except Exception as e:
                 log.status = "failed"
                 log.error_message = str(e)
-                print(f"[ERROR] Failed: {channel.name}: {e}")
+                logger.error(f"[ERROR] Failed: {channel.name}: {e}")
 
-            r.delete("download:current_video")
-
-            from sqlalchemy import func
+            state.set_current_video(None)
             log.finished_at = func.now()
             db.commit()
 
-            if i < total - 1:
+            if i < total - 1 and not state.is_cancelled():
                 sleep_time = random.randint(
                     settings.random_interval_lower,
                     settings.random_interval_upper,
                 )
-                print(f"[DOWNLOAD] Sleeping {sleep_time}s before next channel...")
+                logger.info(f"[DOWNLOAD] Sleeping {sleep_time}s before next channel...")
                 for remaining in range(sleep_time, 0, -1):
-                    _set_progress(r, channel.name, i, total, channel_id=channel.id, phase="sleeping", sleep_seconds=remaining)
+                    if state.is_cancelled():
+                        break
+                    _set_progress(channel.name, i, total, channel_id=channel.id, phase="sleeping", sleep_seconds=remaining)
                     time.sleep(1)
 
         clean_fragments(settings.download_path)
     finally:
-        _set_progress(r, "", 0, 0, status="idle")
-        r.delete(REDIS_TASK_ID_KEY)
-        r.delete("download:current_video")
+        _set_progress("", 0, 0, status="idle")
+        state.clear()
         db.close()
 
 
-@celery.task(bind=True)
-def download_single_channel(self, channel_id: int):
-    r = _get_redis()
-    r.set(REDIS_TASK_ID_KEY, self.request.id)
+def download_single_channel(channel_id: int):
     db = SessionLocal()
     try:
         channel = db.query(Channel).get(channel_id)
@@ -110,54 +97,48 @@ def download_single_channel(self, channel_id: int):
         if not channel or not settings:
             return
 
-        r.delete("download:current_video")
-        _set_progress(r, channel.name, 0, 1, channel_id=channel.id, phase="checking")
-        print(f"[DOWNLOAD] Starting: {channel.name}")
+        state.set_current_video(None)
+        _set_progress(channel.name, 0, 1, channel_id=channel.id, phase="checking")
+        logger.info(f"[DOWNLOAD] Starting: {channel.name}")
 
         log = DownloadLog(channel_id=channel.id, status="running")
         db.add(log)
         db.commit()
 
         try:
-            count = download_channel(channel, settings, session_factory=SessionLocal, redis_client=r, log_id=log.id)
+            count = download_channel(channel, settings, session_factory=SessionLocal, log_id=log.id)
             log.status = "completed"
             log.videos_downloaded = count
-            print(f"[DOWNLOAD] Completed: {channel.name} — {count} video(s) downloaded")
+            logger.info(f"[DOWNLOAD] Completed: {channel.name} — {count} video(s) downloaded")
         except Exception as e:
             log.status = "failed"
             log.error_message = str(e)
-            print(f"[ERROR] Failed: {channel.name}: {e}")
+            logger.error(f"[ERROR] Failed: {channel.name}: {e}")
 
-        _set_progress(r, channel.name, 0, 1, channel_id=channel.id, phase="finishing")
-        r.delete("download:current_video")
-
-        from sqlalchemy import func
+        _set_progress(channel.name, 0, 1, channel_id=channel.id, phase="finishing")
+        state.set_current_video(None)
         log.finished_at = func.now()
         db.commit()
 
         clean_fragments(settings.download_path)
     finally:
-        _set_progress(r, "", 0, 0, status="idle")
-        r.delete(REDIS_TASK_ID_KEY)
-        r.delete("download:current_video")
+        _set_progress("", 0, 0, status="idle")
+        state.clear()
         db.close()
 
 
-@celery.task(bind=True)
-def download_single_video(self, url: str):
+def download_single_video(url: str, tag_name: str | None = None, log_id: int | None = None):
     """Download a single video URL without a channel subscription."""
-    r = _get_redis()
-    r.set(REDIS_TASK_ID_KEY, self.request.id)
     db = SessionLocal()
     try:
         settings = db.query(Settings).first()
         if not settings:
             return
 
-        other_tag = db.query(Tag).filter(Tag.name == "other").first()
-        tag_name = other_tag.name if other_tag else "other"
+        if not tag_name:
+            other_tag = db.query(Tag).filter(Tag.name == "other").first()
+            tag_name = other_tag.name if other_tag else "other"
 
-        # Extract video metadata before downloading
         video_info = _quick_video_info(url)
         uploader = video_info.get("uploader", "")
         video_title = video_info.get("title", "")
@@ -171,30 +152,40 @@ def download_single_video(self, url: str):
             use_global_settings = True
             download_all = False
 
-        r.delete("download:current_video")
-        _set_progress(r, display_name, 0, 1, phase="checking")
-        print(f"[DOWNLOAD] Starting one-off download: {display_name} ({url})")
+        state.set_current_video(None)
+        _set_progress(display_name, 0, 1, phase="checking")
+        logger.info(f"[DOWNLOAD] Starting one-off download: {display_name} ({url})")
 
-        log = DownloadLog(channel_id=None, status="running", label=display_name)
-        db.add(log)
-        db.commit()
+        # Reuse pre-created log if provided, otherwise create one
+        if log_id:
+            log = db.query(DownloadLog).filter(DownloadLog.id == log_id).first()
+            if log:
+                log.status = "running"
+                log.label = display_name
+                db.commit()
+            else:
+                log = DownloadLog(channel_id=None, status="running", label=display_name)
+                db.add(log)
+                db.commit()
+        else:
+            log = DownloadLog(channel_id=None, status="running", label=display_name)
+            db.add(log)
+            db.commit()
 
         try:
-            count = download_channel(_OneOffChannel(), settings, session_factory=SessionLocal, redis_client=r, one_off=True, log_id=log.id)
+            count = download_channel(_OneOffChannel(), settings, session_factory=SessionLocal, one_off=True, log_id=log.id)
             log.status = "completed"
             log.videos_downloaded = count
-            print(f"[DOWNLOAD] Completed one-off download: {count} video(s)")
+            logger.info(f"[DOWNLOAD] Completed one-off download: {count} video(s)")
         except Exception as e:
             log.status = "failed"
             log.error_message = str(e)
-            print(f"[ERROR] Failed one-off download: {e}")
+            logger.error(f"[ERROR] Failed one-off download: {e}")
 
-        from sqlalchemy import func
         log.finished_at = func.now()
         db.commit()
 
     finally:
-        _set_progress(r, "", 0, 0, status="idle")
-        r.delete(REDIS_TASK_ID_KEY)
-        r.delete("download:current_video")
+        _set_progress("", 0, 0, status="idle")
+        state.clear()
         db.close()

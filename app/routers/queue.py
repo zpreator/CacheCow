@@ -1,42 +1,25 @@
-import json
-import os
-
-import redis as redis_lib
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import HTMLResponse
 from app.templating import templates
 from sqlalchemy.orm import Session
 
+from app import state
 from app.database import get_db
 from app.models import DownloadLog, Video
-from app.tasks.download import REDIS_PROGRESS_KEY, REDIS_TASK_ID_KEY
 
 router = APIRouter(prefix="/queue")
 
-_REDIS_URL = os.environ.get("REDIS_URL", "redis://localhost:6379/0")
-
 
 def _get_live_status() -> dict:
-    try:
-        r = redis_lib.Redis.from_url(_REDIS_URL)
-        is_running = r.exists(REDIS_TASK_ID_KEY) == 1
-        progress_raw = r.get(REDIS_PROGRESS_KEY)
-        current_video_raw = r.get("download:current_video")
-
-        progress = json.loads(progress_raw) if progress_raw else {"status": "idle"}
-        current_video = json.loads(current_video_raw) if current_video_raw else None
-
-        # A stale task_id key (e.g. from a crashed task) should not show as running.
-        # Only consider running if both the key exists AND progress reports "running".
-        actually_running = is_running and progress.get("status") == "running"
-
-        return {
-            "is_running": actually_running,
-            "progress": progress,
-            "current_video": current_video,
-        }
-    except Exception:
-        return {"is_running": False, "progress": {"status": "idle"}, "current_video": None}
+    with state._lock:
+        is_running = state.task_id is not None and state.progress.get("status") == "running"
+        progress = dict(state.progress)
+        current_video = dict(state.current_video) if state.current_video else None
+    return {
+        "is_running": is_running,
+        "progress": progress,
+        "current_video": current_video,
+    }
 
 
 def _build_context(db: Session) -> dict:
@@ -47,7 +30,6 @@ def _build_context(db: Session) -> dict:
         .limit(100)
         .all()
     )
-    # Cache logs referenced by videos to avoid N+1 queries
     log_ids = {v.download_log_id for v in videos if v.download_log_id}
     log_cache: dict[int, DownloadLog] = {}
     if log_ids:

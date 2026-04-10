@@ -13,5 +13,21 @@ def _localtime(value: datetime) -> datetime:
     return value.astimezone(tzlocal())
 
 
-templates = Jinja2Templates(directory="app/templates")
+def _download_path_missing() -> bool:
+    try:
+        from app.database import SessionLocal
+        from app.models import Settings
+        db = SessionLocal()
+        try:
+            s = db.query(Settings).first()
+            return not bool(s and s.download_path and s.download_path.strip())
+        finally:
+            db.close()
+    except Exception:
+        return False
+
+
+from app.paths import TEMPLATES_DIR
+templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
 templates.env.filters["localtime"] = _localtime
+templates.env.globals["download_path_missing"] = _download_path_missing

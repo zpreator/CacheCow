@@ -46,12 +46,18 @@
 <!-- Download Path -->
 <div class="settings-section">
     <h3>Download Location</h3>
-    <form hx-put="/settings/download-path" hx-swap="none">
+    <form hx-put="/settings/download-path" hx-swap="none" id="download-path-form">
         <label>
             Download Path
-            <input type="text" name="download_path" value="{{ settings.download_path }}">
+            <div style="display:flex;gap:0.5rem;align-items:center;">
+                <input type="text" name="download_path" id="download-path-input"
+                       value="{{ settings.download_path }}" placeholder="No path set — click Browse to choose"
+                       style="flex:1;margin:0;">
+                <button type="button" class="outline secondary" style="margin:0;white-space:nowrap;"
+                        onclick="browsePath()">Browse…</button>
+            </div>
         </label>
-        <button type="submit">Save Path</button>
+        <button type="submit" style="margin-top:0.5rem;">Save Path</button>
     </form>
 </div>
 
@@ -115,4 +121,23 @@
         <button type="submit" style="margin-top: 1rem;">Change Password</button>
     </form>
 </div>
+<script>
+async function browsePath() {
+    const btn = document.querySelector('button[onclick="browsePath()"]');
+    btn.disabled = true;
+    btn.textContent = 'Opening…';
+    try {
+        const resp = await fetch('/settings/browse-path');
+        const data = await resp.json();
+        if (data.path) {
+            document.getElementById('download-path-input').value = data.path;
+        }
+    } catch (e) {
+        // silently ignore — user can type manually
+    } finally {
+        btn.disabled = false;
+        btn.textContent = 'Browse…';
+    }
+}
+</script>
 {% endblock %}

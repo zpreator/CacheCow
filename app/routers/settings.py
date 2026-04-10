@@ -47,7 +47,7 @@ async def update_global_settings(request: Request, db: Session = Depends(get_db)
 
     db.commit()
 
-    from app.celery_app import update_download_schedule
+    from app.scheduler import update_download_schedule
     update_download_schedule(s.minutes_between_runs)
 
     response = HTMLResponse("")
@@ -83,6 +83,47 @@ async def update_cleaning_settings(request: Request, db: Session = Depends(get_d
     response = HTMLResponse("")
     response.headers["HX-Trigger"] = json.dumps({"showToast": "Cleaning settings saved"})
     return response
+
+
+@router.get("/browse-path")
+async def browse_path():
+    """Open a native folder-picker dialog and return the chosen path as JSON."""
+    import asyncio
+    import platform
+    import subprocess
+    from fastapi.responses import JSONResponse
+
+    def _pick():
+        system = platform.system()
+        try:
+            if system == "Darwin":
+                result = subprocess.run(
+                    ["osascript", "-e",
+                     'POSIX path of (choose folder with prompt "Choose download folder")'],
+                    capture_output=True, text=True, timeout=120,
+                )
+                return result.stdout.strip().rstrip("/") if result.returncode == 0 else ""
+            elif system == "Windows":
+                ps = (
+                    'Add-Type -AssemblyName System.Windows.Forms;'
+                    '$d=New-Object System.Windows.Forms.FolderBrowserDialog;'
+                    '$d.Description="Choose download folder";'
+                    'if($d.ShowDialog() -eq "OK"){$d.SelectedPath}'
+                )
+                result = subprocess.run(
+                    ["powershell", "-NoProfile", "-Command", ps],
+                    capture_output=True, text=True, timeout=120,
+                )
+                return result.stdout.strip() if result.returncode == 0 else ""
+        except Exception:
+            pass
+        return ""
+
+    loop = asyncio.get_event_loop()
+    from concurrent.futures import ThreadPoolExecutor
+    with ThreadPoolExecutor(max_workers=1) as pool:
+        path = await loop.run_in_executor(pool, _pick)
+    return JSONResponse({"path": path})
 
 
 @router.put("/password", response_class=HTMLResponse)

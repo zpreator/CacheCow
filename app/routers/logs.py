@@ -1,6 +1,6 @@
 import html
-import subprocess
-from datetime import datetime, timedelta, timezone
+import os
+from datetime import datetime, timezone
 
 from dateutil.tz import tzlocal
 
@@ -14,11 +14,11 @@ from app.models import DownloadLog
 
 router = APIRouter(prefix="/logs")
 
-_PROJECT = "cachecow"
-_CONTAINERS = {"worker", "web", "beat", "redis"}
+from app.paths import LOG_FILE as _LOG_FILE_PATH
+_LOG_FILE = str(_LOG_FILE_PATH)
 
-# Lines filtered out of the web container's raw output
-_WEB_NOISE = (
+# Lines filtered out of the raw output
+_RAW_NOISE = (
     "GET /queue/status",
     "GET /logs/fetch",
     "GET /videos/search",
@@ -33,25 +33,18 @@ _ACTIVITY_KEEP = (
     "[WARNING]",
     "Traceback",
     "Exception",
-    "Task cachecow",
 )
 
 
-def _docker_logs(service: str, lines: int) -> str:
-    container = f"{_PROJECT}-{service}-1"
+def _read_log_lines(lines: int) -> list[str]:
+    if not os.path.exists(_LOG_FILE):
+        return []
     try:
-        result = subprocess.run(
-            ["docker", "logs", "--tail", str(lines), container],
-            capture_output=True, text=True, timeout=15,
-        )
-        out = result.stdout + result.stderr
-        return out if out.strip() else "(No logs available)"
-    except FileNotFoundError:
-        return "(Docker CLI not available)"
-    except subprocess.TimeoutExpired:
-        return "(Timed out)"
+        with open(_LOG_FILE, "r", encoding="utf-8", errors="replace") as f:
+            all_lines = f.readlines()
+        return [l.rstrip("\n") for l in all_lines[-lines:]]
     except Exception as e:
-        return f"(Error: {e})"
+        return [f"(Error reading log file: {e})"]
 
 
 def _line_class(line: str) -> str:
@@ -64,8 +57,6 @@ def _line_class(line: str) -> str:
         return "log-ok"
     if "[download]" in lo:
         return "log-info"
-    if "task cachecow" in lo:
-        return "log-task"
     return ""
 
 
@@ -84,16 +75,15 @@ def _lines_to_html(lines: list[str]) -> str:
     return f'<pre style="margin:0;"><code>{inner}</code></pre>'
 
 
-def _render_activity(service: str, lines: int) -> HTMLResponse:
-    raw = _docker_logs(service, lines)
-    filtered = [l for l in raw.splitlines() if any(p in l for p in _ACTIVITY_KEEP)]
+def _render_activity(lines: int) -> HTMLResponse:
+    raw = _read_log_lines(lines)
+    filtered = [l for l in raw if any(p in l for p in _ACTIVITY_KEEP)]
     return HTMLResponse(_lines_to_html(filtered))
 
 
-def _render_raw(service: str, lines: int) -> HTMLResponse:
-    raw = _docker_logs(service, lines)
-    skip = _WEB_NOISE if service == "web" else ()
-    filtered = [l for l in raw.splitlines() if not any(p in l for p in skip)]
+def _render_raw(lines: int) -> HTMLResponse:
+    raw = _read_log_lines(lines)
+    filtered = [l for l in raw if not any(p in l for p in _RAW_NOISE)]
     return HTMLResponse(_lines_to_html(filtered))
 
 
@@ -156,13 +146,11 @@ async def logs_page(request: Request):
 @router.get("/fetch", response_class=HTMLResponse)
 async def fetch_logs(
     level: str = Query("summary"),
-    container: str = Query("worker"),
     lines: int = Query(300),
     db: Session = Depends(get_db),
 ):
     if level == "summary":
         return _render_summary(db)
-    svc = container if container in _CONTAINERS else "worker"
     if level == "raw":
-        return _render_raw(svc, lines)
-    return _render_activity(svc, lines)
+        return _render_raw(lines)
+    return _render_activity(lines)

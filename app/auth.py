@@ -11,22 +11,47 @@ COOKIE_NAME = "cachecow_session"
 MAX_AGE = 60 * 60 * 24 * 7  # 7 days
 
 
-def _get_db_password_hash() -> str | None:
-    """Return the password hash stored in DB settings, if any."""
+def _get_db_settings():
+    """Return the Settings row, or None."""
     try:
         from app.database import SessionLocal
         from app.models import Settings
         db = SessionLocal()
         try:
-            s = db.query(Settings).first()
-            return s.password_hash if s else None
+            return db.query(Settings).first()
         finally:
             db.close()
     except Exception:
         return None
 
 
+def _get_db_password_hash() -> str | None:
+    s = _get_db_settings()
+    return s.password_hash if s else None
+
+
+def get_db_username() -> str:
+    """Return the configured username (DB takes precedence over env/default)."""
+    s = _get_db_settings()
+    if s and s.username:
+        return s.username
+    return settings.app_user
+
+
+def is_setup_complete() -> bool:
+    s = _get_db_settings()
+    return bool(s and s.setup_complete)
+
+
+def verify_credentials(username: str, password: str) -> bool:
+    hashed = hashlib.sha256(password.encode()).hexdigest()
+    db_hash = _get_db_password_hash()
+    expected = db_hash if db_hash else settings.app_pass_hash
+    return username == get_db_username() and hashed == expected
+
+
 def verify_password(password: str) -> bool:
+    """Check password only (used by the change-password flow)."""
     hashed = hashlib.sha256(password.encode()).hexdigest()
     db_hash = _get_db_password_hash()
     expected = db_hash if db_hash else settings.app_pass_hash

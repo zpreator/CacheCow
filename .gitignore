@@ -1,10 +1,28 @@
+# Python
 venv/
-data/
 __pycache__/
 *.pyc
+*.pyo
+*.pyd
+*.egg-info/
+
+# Environment
 .env
 client_secret.json
 token.json
+
+# Runtime data
+data/
+
+# Logs / temp
 *.log
 *.pid
 temp.*
+
+# PyInstaller
+build/
+dist/
+
+# Tauri
+src-tauri/target/
+src-tauri/binaries/

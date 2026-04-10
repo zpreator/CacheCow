@@ -1,0 +1,20 @@
+<div style="font-size:0.82rem;border:1px solid var(--pico-muted-border-color);border-radius:var(--pico-border-radius);padding:0.6rem 0.75rem;background:var(--pico-card-background-color);">
+    <div style="font-weight:600;margin-bottom:0.3rem;">Already downloaded</div>
+    <div style="color:var(--pico-muted-color);margin-bottom:0.5rem;word-break:break-all;">{{ title }}</div>
+    <div style="display:flex;gap:0.4rem;flex-wrap:wrap;">
+        <form hx-post="/discover/download" hx-target="closest div" hx-swap="outerHTML" style="margin:0;">
+            <input type="hidden" name="url" value="{{ url }}">
+            <input type="hidden" name="tag_id" value="{{ tag_id }}">
+            <input type="hidden" name="overwrite" value="1">
+            <button type="submit" class="outline"
+                    style="padding:0.2rem 0.6rem;font-size:0.78rem;margin:0;">
+                Download anyway
+            </button>
+        </form>
+        <button type="button" class="outline secondary"
+                style="padding:0.2rem 0.6rem;font-size:0.78rem;margin:0;"
+                onclick="this.closest('div').innerHTML=''">
+            Cancel
+        </button>
+    </div>
+</div>

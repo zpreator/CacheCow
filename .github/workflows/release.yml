@@ -1,0 +1,184 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  # ── Step 1: Build PyInstaller sidecar on each platform ─────────────────────
+  build-sidecar:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest
+            target: aarch64-apple-darwin
+            exe_suffix: ""
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            exe_suffix: ".exe"
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install Python dependencies
+        run: pip install -r requirements.txt pyinstaller
+
+      - name: Install ffmpeg (Windows)
+        if: runner.os == 'Windows'
+        run: choco install ffmpeg -y
+
+      - name: Build sidecar
+        run: pyinstaller cachecow.spec --noconfirm
+
+      - name: Stage sidecar for Tauri
+        shell: bash
+        run: |
+          mkdir -p src-tauri/binaries
+          cp dist/cachecow-server${{ matrix.exe_suffix }} \
+             src-tauri/binaries/cachecow-server-${{ matrix.target }}${{ matrix.exe_suffix }}
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: sidecar-${{ matrix.target }}
+          path: src-tauri/binaries/
+
+  # ── Step 2: Create the GitHub draft release (once) ─────────────────────────
+  create-release:
+    needs: build-sidecar
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    outputs:
+      release_id: ${{ steps.create.outputs.release_id }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Create draft release
+        id: create
+        run: |
+          RELEASE_ID=$(gh api repos/${{ github.repository }}/releases \
+            -X POST \
+            -f tag_name=${{ github.ref_name }} \
+            -f name="CacheCow ${{ github.ref_name }}" \
+            -f body="## What's new
+          See commit history for details.
+
+          ## Downloads
+          | Platform | File |
+          |----------|------|
+          | macOS Apple Silicon | \`CacheCow-mac.dmg\` |
+          | Windows | \`CacheCow-windows.exe\` |
+          | Linux (server) | \`curl -sSL .../install.sh | bash\` |" \
+            -F draft=true \
+            --jq '.id')
+          echo "release_id=$RELEASE_ID" >> $GITHUB_OUTPUT
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # ── Step 3: Build Tauri installer on each platform ─────────────────────────
+  build-tauri:
+    needs: [build-sidecar, create-release]
+    permissions:
+      contents: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest
+            target: aarch64-apple-darwin
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download sidecar
+        uses: actions/download-artifact@v4
+        with:
+          name: sidecar-${{ matrix.target }}
+          path: src-tauri/binaries/
+
+      - name: Make sidecar executable (macOS)
+        if: runner.os == 'macOS'
+        run: chmod +x src-tauri/binaries/*
+
+      - name: Extract version from tag
+        id: version
+        shell: bash
+        run: echo "value=${GITHUB_REF_NAME#v}" >> $GITHUB_OUTPUT
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Rust cache
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      - uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          releaseId: ${{ needs.create-release.outputs.release_id }}
+          includeUpdaterJson: false
+          args: --config '{"version":"${{ steps.version.outputs.value }}"}'
+
+      - name: Upload stable-named macOS asset
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          DMG=$(find src-tauri/target/release/bundle/dmg -name "*.dmg" | head -1)
+          gh release upload ${{ github.ref_name }} "$DMG#CacheCow-mac.dmg" --clobber
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload stable-named Windows asset
+        if: runner.os == 'Windows'
+        shell: bash
+        run: |
+          EXE=$(find src-tauri/target/release/bundle/nsis -name "*-setup.exe" | head -1)
+          gh release upload ${{ github.ref_name }} "$EXE#CacheCow-windows.exe" --clobber
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # ── Step 4: Build and push Docker image, upload install script ──────────────
+  build-docker:
+    needs: [create-release, build-tauri]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      packages: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository_owner }}/cachecow:latest
+            ghcr.io/${{ github.repository_owner }}/cachecow:${{ github.ref_name }}
+
+      - name: Upload install script to release
+        run: gh release upload ${{ github.ref_name }} install.sh --clobber
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
