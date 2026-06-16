@@ -95,6 +95,16 @@ class Video(Base):
 
 def ensure_defaults(db):
     """Create default tag and settings row if they don't exist."""
+    # Run column migrations before any ORM query so SQLAlchemy doesn't SELECT
+    # columns that don't exist yet on old databases.
+    _add_column_if_missing(db, "settings", "password_hash", "VARCHAR(128)")
+    _add_column_if_missing(db, "settings", "username", "VARCHAR(100)")
+    _add_column_if_missing(db, "settings", "setup_complete", "BOOLEAN DEFAULT 0")
+    _add_column_if_missing(db, "videos", "uploader", "VARCHAR(500)")
+    _add_column_if_missing(db, "videos", "download_log_id", "INTEGER")
+    _add_column_if_missing(db, "download_log", "label", "VARCHAR(500)")
+    db.expire_all()
+
     if not db.query(Tag).filter(Tag.name == "other").first():
         db.add(Tag(name="other"))
         db.commit()
@@ -102,14 +112,6 @@ def ensure_defaults(db):
         from app.paths import DEFAULT_DOWNLOAD_DIR
         db.add(Settings(download_path=str(DEFAULT_DOWNLOAD_DIR)))
         db.commit()
-
-    # Runtime column migrations for SQLite (create_all won't add columns to existing tables)
-    _add_column_if_missing(db, "videos", "uploader", "VARCHAR(500)")
-    _add_column_if_missing(db, "videos", "download_log_id", "INTEGER")
-    _add_column_if_missing(db, "download_log", "label", "VARCHAR(500)")
-    _add_column_if_missing(db, "settings", "username", "VARCHAR(100)")
-    _add_column_if_missing(db, "settings", "setup_complete", "BOOLEAN DEFAULT 0")
-    db.expire_all()
 
 
 def _add_column_if_missing(db, table: str, column: str, col_type: str):
