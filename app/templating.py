@@ -1,7 +1,19 @@
+import subprocess
+import time
 from datetime import datetime, timezone
 
 from dateutil.tz import tzlocal
 from fastapi.templating import Jinja2Templates
+
+
+def _asset_version() -> str:
+    try:
+        return subprocess.check_output(
+            ["git", "rev-parse", "--short", "HEAD"],
+            stderr=subprocess.DEVNULL,
+        ).decode().strip()
+    except Exception:
+        return str(int(time.time()))
 
 
 def _localtime(value: datetime) -> datetime:
@@ -31,3 +43,4 @@ from app.paths import TEMPLATES_DIR
 templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
 templates.env.filters["localtime"] = _localtime
 templates.env.globals["download_path_missing"] = _download_path_missing
+templates.env.globals["asset_version"] = _asset_version()

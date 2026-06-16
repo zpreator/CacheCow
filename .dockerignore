@@ -1,0 +1,16 @@
+venv/
+__pycache__/
+*.pyc
+*.pyo
+.env
+.git/
+.gitignore
+dist/
+build/
+*.spec
+src-tauri/
+node_modules/
+scripts/mobile_screenshots/
+data/
+*.log
+.DS_Store

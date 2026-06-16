@@ -108,9 +108,21 @@ def ensure_defaults(db):
     if not db.query(Tag).filter(Tag.name == "other").first():
         db.add(Tag(name="other"))
         db.commit()
-    if not db.query(Settings).first():
+
+    s = db.query(Settings).first()
+    if not s:
         from app.paths import DEFAULT_DOWNLOAD_DIR
-        db.add(Settings(download_path=str(DEFAULT_DOWNLOAD_DIR)))
+        s = Settings(download_path=str(DEFAULT_DOWNLOAD_DIR))
+        db.add(s)
+        db.commit()
+
+    # If upgrading from a pre-setup-flow version, the row exists but setup_complete
+    # is False. Mark it complete so the user isn't shown the setup page after upgrade.
+    if not s.setup_complete:
+        from app.config import settings as cfg
+        s.setup_complete = True
+        if not s.username:
+            s.username = cfg.app_user
         db.commit()
 
 

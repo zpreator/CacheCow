@@ -685,12 +685,20 @@ fieldset[role="group"] > :last-child:active {
 
     .sidebar-nav {
         display: none;
-        padding-top: 0.5rem;
     }
 
     .sidebar-nav.open {
         display: flex;
         flex-direction: column;
+        position: absolute;
+        top: 100%;
+        left: 0;
+        right: 0;
+        z-index: 200;
+        background: var(--pico-background-color);
+        border-bottom: 1px solid var(--pico-muted-border-color);
+        padding: 0.5rem 1rem 1rem;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.3);
     }
 
     .sidebar ul {
