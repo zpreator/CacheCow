@@ -21,9 +21,44 @@ html {
     overflow-y: auto;
 }
 
-.sidebar header h2 {
+.sidebar-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
     margin-bottom: 1rem;
+}
+
+.sidebar-header h2 {
     font-size: 1.4rem;
+}
+
+.sidebar-nav {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+}
+
+.hamburger-btn {
+    display: none;
+    flex-direction: column;
+    justify-content: center;
+    gap: 5px;
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 0.25rem;
+    width: 2rem;
+    height: 2rem;
+    margin: 0;
+    flex-shrink: 0;
+}
+
+.hamburger-btn span {
+    display: block;
+    width: 20px;
+    height: 2px;
+    background: var(--pico-color);
+    border-radius: 2px;
 }
 
 .sidebar ul {
@@ -630,19 +665,58 @@ fieldset[role="group"] > :last-child:active {
         width: 100%;
         min-width: unset;
         height: auto;
-        position: static;
+        position: sticky;
+        top: 0;
+        z-index: 100;
         border-right: none;
         border-bottom: 1px solid var(--pico-muted-border-color);
+        padding: 0.75rem 1rem;
+        overflow: visible;
+        background: var(--pico-background-color);
+    }
+
+    .sidebar-header {
+        margin-bottom: 0;
+    }
+
+    .hamburger-btn {
+        display: flex;
+    }
+
+    .sidebar-nav {
+        display: none;
+        padding-top: 0.5rem;
+    }
+
+    .sidebar-nav.open {
+        display: flex;
+        flex-direction: column;
     }
 
     .sidebar ul {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 0.25rem;
+        flex-direction: column;
+        flex-wrap: nowrap;
+        gap: 0;
+    }
+
+    .sidebar footer {
+        padding-top: 0.75rem;
     }
 
     .content {
         padding: 1rem;
+    }
+
+    .channel-card {
+        flex-wrap: wrap;
+    }
+
+    .channel-card .channel-actions {
+        width: 100%;
+        flex: none;
+        margin-top: 0.5rem;
+        padding-top: 0.5rem;
+        border-top: 1px solid var(--pico-muted-border-color);
     }
 
     .channel-edit-form .form-grid {
@@ -652,5 +726,4 @@ fieldset[role="group"] > :last-child:active {
     .video-grid {
         grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
     }
-
 }

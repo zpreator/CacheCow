@@ -12,25 +12,32 @@
 <body hx-boost="true">
     <div class="layout">
         <aside class="sidebar">
-            <header>
-                <h2 style="display:flex;align-items:center;gap:0.5rem;">
+            <div class="sidebar-header">
+                <h2 style="display:flex;align-items:center;gap:0.5rem;margin:0;">
                     <img src="/static/cow-head.png" alt="" style="width:1.5rem;height:1.5rem;object-fit:contain;">
                     CacheCow
                 </h2>
-            </header>
-            <ul>
-                <li><a href="/" {% if active_page == "library" %}class="active"{% endif %}>Library</a></li>
-                <li><a href="/discover" {% if active_page == "discover" %}class="active"{% endif %}>Discover</a></li>
-                <li><a href="/queue" {% if active_page == "queue" %}class="active"{% endif %}>Queue</a></li>
-                <li><a href="/channels" {% if active_page == "channels" %}class="active"{% endif %}>Channels</a></li>
-                <li><a href="/settings" {% if active_page == "settings" %}class="active"{% endif %}>Settings</a></li>
-                <li><a href="/logs" {% if active_page == "logs" %}class="active"{% endif %}>Logs</a></li>
-            </ul>
-            <footer>
-                <form action="/logout" method="post">
-                    <button type="submit" class="outline secondary">Logout</button>
-                </form>
-            </footer>
+                <button class="hamburger-btn" id="hamburger-btn" aria-label="Toggle menu" aria-expanded="false">
+                    <span></span>
+                    <span></span>
+                    <span></span>
+                </button>
+            </div>
+            <div class="sidebar-nav" id="sidebar-nav">
+                <ul>
+                    <li><a href="/" {% if active_page == "library" %}class="active"{% endif %}>Library</a></li>
+                    <li><a href="/discover" {% if active_page == "discover" %}class="active"{% endif %}>Discover</a></li>
+                    <li><a href="/queue" {% if active_page == "queue" %}class="active"{% endif %}>Queue</a></li>
+                    <li><a href="/channels" {% if active_page == "channels" %}class="active"{% endif %}>Channels</a></li>
+                    <li><a href="/settings" {% if active_page == "settings" %}class="active"{% endif %}>Settings</a></li>
+                    <li><a href="/logs" {% if active_page == "logs" %}class="active"{% endif %}>Logs</a></li>
+                </ul>
+                <footer>
+                    <form action="/logout" method="post">
+                        <button type="submit" class="outline secondary">Logout</button>
+                    </form>
+                </footer>
+            </div>
         </aside>
         <main class="content">
             <div id="toast-container"></div>
@@ -57,6 +64,21 @@
                 if (a) { a.pause(); a.removeAttribute('src'); a.load(); }
             });
         }
+        (function() {
+            var btn = document.getElementById('hamburger-btn');
+            var nav = document.getElementById('sidebar-nav');
+            if (!btn || !nav) return;
+            btn.addEventListener('click', function() {
+                var open = nav.classList.toggle('open');
+                btn.setAttribute('aria-expanded', String(open));
+            });
+            nav.addEventListener('click', function(e) {
+                if (e.target.tagName === 'A') {
+                    nav.classList.remove('open');
+                    btn.setAttribute('aria-expanded', 'false');
+                }
+            });
+        })();
         if (!window._toastReady) {
             window._toastReady = true;
             document.body.addEventListener("showToast", function(evt) {
