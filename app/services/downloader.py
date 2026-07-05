@@ -336,6 +336,11 @@ def download_channel(channel, settings, session_factory=None, one_off=False, log
 
             if "tiktok" in link.lower():
                 fmt = "bestvideo+bestaudio/best"
+                # TikTok's h265/bytevc1 formats often report acodec=aac in yt-dlp's
+                # format list, but the CDN stream behind them has no actual audio
+                # track — only the h264 formats reliably contain real audio. Without
+                # this, "best" can silently pick a muted h265 stream.
+                format_sort = ["vcodec:h264"]
                 postprocessors = [
                     {"key": "EmbedThumbnail"},
                 ]
@@ -343,6 +348,7 @@ def download_channel(channel, settings, session_factory=None, one_off=False, log
                 pp_hook = None
             else:
                 fmt = "bestvideo[height<=1080][vcodec^=avc1]+bestaudio[acodec^=mp4a]/bestvideo[height<=1080]+bestaudio[acodec^=mp4a]/bestvideo[height<=1080]+bestaudio/best"
+                format_sort = None
                 postprocessors = [
                     {
                         "key": "FFmpegVideoConvertor",
@@ -380,6 +386,8 @@ def download_channel(channel, settings, session_factory=None, one_off=False, log
             }
             if ffmpeg_loc:
                 ydl_opts["ffmpeg_location"] = ffmpeg_loc
+            if format_sort:
+                ydl_opts["format_sort"] = format_sort
 
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                 ydl.download([link.strip()])
