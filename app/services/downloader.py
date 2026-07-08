@@ -8,6 +8,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 
 import yt_dlp
+from yt_dlp.postprocessor import MetadataParserPP
 
 from app.logging_config import logger
 from app.paths import ARCHIVE_FILE as _ARCHIVE_FILE_PATH
@@ -350,6 +351,22 @@ def download_channel(channel, settings, session_factory=None, one_off=False, log
                 fmt = "bestvideo[height<=1080][vcodec^=avc1]+bestaudio[acodec^=mp4a]/bestvideo[height<=1080]+bestaudio[acodec^=mp4a]/bestvideo[height<=1080]+bestaudio/best"
                 format_sort = None
                 postprocessors = [
+                    # Prefix the embedded metadata title with the channel name so
+                    # media servers show "Mumbo Jumbo - Video title" (matching the
+                    # filename). Sets meta_title, which FFmpegMetadata reads with
+                    # priority over the raw title. Runs pre_process so it's in place
+                    # before FFmpegMetadata embeds it.
+                    {
+                        "key": "MetadataParser",
+                        "when": "pre_process",
+                        "actions": [
+                            (
+                                MetadataParserPP.Actions.INTERPRET,
+                                "%(uploader)s - %(title)s",
+                                "%(meta_title)s",
+                            ),
+                        ],
+                    },
                     {
                         "key": "FFmpegVideoConvertor",
                         "preferedformat": "mp4",
