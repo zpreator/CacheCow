@@ -137,16 +137,53 @@ def _remove_from_archive(youtube_id: str):
         print(f"[DELETE] Could not update archive: {e}")
 
 
+def _scan_shared_log(video, limit: int = 200) -> list[str]:
+    """Best-effort log lines for a video downloaded before per-video capture existed.
+
+    Falls back to scanning the shared log file for lines that name this video by
+    id, title, or filename. Approximate by nature — the stored per-video log is
+    authoritative when present.
+    """
+    from app.paths import LOG_FILE
+
+    needles = [video.youtube_id, video.title]
+    if video.file_path:
+        needles.append(Path(video.file_path).name)
+        needles.append(Path(video.file_path).stem)
+    needles = [n for n in needles if n and len(n) > 3]
+    if not needles:
+        return []
+
+    try:
+        with open(LOG_FILE, "r", encoding="utf-8", errors="replace") as f:
+            matched = [line.rstrip("\n") for line in f if any(n in line for n in needles)]
+    except OSError:
+        return []
+    return matched[-limit:]
+
+
+def _video_log(video):
+    """(lines, source) for the video's download log."""
+    if video.log_text:
+        return video.log_text.splitlines(), "captured"
+    return _scan_shared_log(video), "scanned"
+
+
 @router.get("/videos/{video_id}", response_class=HTMLResponse)
 async def video_player(request: Request, video_id: int, db: Session = Depends(get_db)):
     video = db.query(Video).get(video_id)
     if not video:
         raise HTTPException(404)
     file_exists = bool(_resolve_file_path(video.file_path))
+    from app.routers.logs import _line_class
+
+    log_lines, log_source = _video_log(video)
     return templates.TemplateResponse(request, "home/video.html", {
         "active_page": "library",
         "video": video,
         "file_exists": file_exists,
+        "log_lines": [(_line_class(line), line) for line in log_lines],
+        "log_source": log_source,
     })
 
 
