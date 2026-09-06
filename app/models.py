@@ -88,6 +88,8 @@ class Video(Base):
     uploader: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
     downloaded_at: Mapped[datetime] = mapped_column(server_default=func.now())
     download_log_id: Mapped[Optional[int]] = mapped_column(ForeignKey("download_log.id"), nullable=True)
+    # Log lines captured while this specific video was being downloaded
+    log_text: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
 
     channel: Mapped[Optional["Channel"]] = relationship()
     download_log: Mapped[Optional["DownloadLog"]] = relationship()
@@ -102,6 +104,7 @@ def ensure_defaults(db):
     _add_column_if_missing(db, "settings", "setup_complete", "BOOLEAN DEFAULT 0")
     _add_column_if_missing(db, "videos", "uploader", "VARCHAR(500)")
     _add_column_if_missing(db, "videos", "download_log_id", "INTEGER")
+    _add_column_if_missing(db, "videos", "log_text", "TEXT")
     _add_column_if_missing(db, "download_log", "label", "VARCHAR(500)")
     db.expire_all()
 

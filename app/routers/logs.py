@@ -7,6 +7,7 @@ from dateutil.tz import tzlocal
 from fastapi import APIRouter, Depends, Query, Request
 from fastapi.responses import HTMLResponse
 from app.templating import templates
+from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
 from app.database import get_db
@@ -91,13 +92,17 @@ def _render_summary(db: Session) -> HTMLResponse:
     logs = (
         db.query(DownloadLog)
         .filter(DownloadLog.status != "running")
+        # A completed run that found nothing new is the common case and just
+        # buries the runs that actually did something.
+        .filter(or_(DownloadLog.status != "completed", DownloadLog.videos_downloaded > 0))
         .order_by(DownloadLog.started_at.desc())
         .limit(100)
         .all()
     )
     if not logs:
         return HTMLResponse(
-            '<pre style="margin:0;"><code style="color:var(--pico-muted-color);">(No completed runs yet)</code></pre>'
+            '<pre style="margin:0;"><code style="color:var(--pico-muted-color);">'
+            '(No runs with downloads yet)</code></pre>'
         )
 
     lines = []

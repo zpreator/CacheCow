@@ -10,7 +10,7 @@ from pathlib import Path
 import yt_dlp
 from yt_dlp.postprocessor import MetadataParserPP
 
-from app.logging_config import logger
+from app.logging_config import logger, pop_video_log, set_log_video
 from app.paths import ARCHIVE_FILE as _ARCHIVE_FILE_PATH
 ARCHIVE_FILE = str(_ARCHIVE_FILE_PATH)
 
@@ -194,6 +194,28 @@ def verify_downloads(completed: list, counter: list, session_factory=None) -> in
     return discarded
 
 
+def _attach_log_to_video(session_factory, youtube_id):
+    """Persist the lines logged while this video downloaded onto its Video row."""
+    if not session_factory or not youtube_id:
+        return
+    text = pop_video_log(youtube_id)
+    if not text:
+        return
+    from app.models import Video
+    db = None
+    try:
+        db = session_factory()
+        video = db.query(Video).filter(Video.youtube_id == youtube_id).first()
+        if video:
+            video.log_text = text
+            db.commit()
+    except Exception as e:
+        logger.error(f"[ERROR] Failed to save log for {youtube_id}: {e}")
+    finally:
+        if db is not None:
+            db.close()
+
+
 def make_hook(counter: list, channel_id=None, session_factory=None, log_id=None, completed=None):
     """Return (progress_hook, postprocessor_hook) sharing state.
 
@@ -209,6 +231,7 @@ def make_hook(counter: list, channel_id=None, session_factory=None, log_id=None,
             info = d.get("info_dict", {})
             if info.get("title"):
                 last_info.update(info)
+            set_log_video(info.get("id"))
             total = d.get("total_bytes") or d.get("total_bytes_estimate", 0)
             downloaded = d.get("downloaded_bytes", 0)
             percent = round(downloaded / total * 100, 1) if total else 0
@@ -238,8 +261,10 @@ def make_hook(counter: list, channel_id=None, session_factory=None, log_id=None,
                 info = {**d.get("info_dict", {}), **last_info}
                 if session_factory:
                     _save_video_to_db(session_factory, channel_id, info, filename, d.get("downloaded_bytes"), log_id=log_id)
+                    _attach_log_to_video(session_factory, info.get("id", ""))
                 if completed is not None:
                     completed.append((filename, info.get("id", "")))
+                set_log_video(None)
 
     def postprocessor_hook(d):
         pp_name = d.get("postprocessor", "unknown")
@@ -271,8 +296,10 @@ def make_hook(counter: list, channel_id=None, session_factory=None, log_id=None,
         if session_factory:
             file_size = info.get("filesize") or info.get("filesize_approx")
             _save_video_to_db(session_factory, channel_id, merged, filename, file_size, log_id=log_id)
+            _attach_log_to_video(session_factory, merged.get("id", ""))
         if completed is not None:
             completed.append((filename, merged.get("id", "")))
+        set_log_video(None)
 
     return progress_hook, postprocessor_hook
 
@@ -283,6 +310,7 @@ def make_tiktok_hook(counter: list, channel_id=None, session_factory=None, log_i
     def hook(d):
         if d["status"] == "downloading":
             info = d.get("info_dict", {})
+            set_log_video(info.get("id"))
             total = d.get("total_bytes") or d.get("total_bytes_estimate", 0)
             downloaded = d.get("downloaded_bytes", 0)
             percent = round(downloaded / total * 100, 1) if total else 0
@@ -303,6 +331,7 @@ def make_tiktok_hook(counter: list, channel_id=None, session_factory=None, log_i
                 info = d.get("info_dict", {})
                 if session_factory:
                     _save_video_to_db(session_factory, channel_id, info, filename, d.get("downloaded_bytes"), log_id=log_id)
+                    _attach_log_to_video(session_factory, info.get("id", ""))
                 if completed is not None:
                     completed.append((filename, info.get("id", "")))
             filepath = Path(filename)
@@ -316,6 +345,7 @@ def make_tiktok_hook(counter: list, channel_id=None, session_factory=None, log_i
                     logger.warning(f"[WARNING] Unexpected filename format: {stem}")
             except Exception as e:
                 logger.error(f"[ERROR] Cleaning metadata for {filepath}: {e}")
+            set_log_video(None)
     return hook
 
 
