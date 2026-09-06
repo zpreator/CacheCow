@@ -84,7 +84,117 @@ def _save_video_to_db(session_factory, channel_id, info, filename, file_size, lo
             db.close()
 
 
-def make_hook(counter: list, channel_id=None, session_factory=None, log_id=None):
+def _ffmpeg_exe() -> str:
+    """Full path to the ffmpeg binary (bundled build first, then PATH)."""
+    from app.paths import BUNDLED_FFMPEG
+    if BUNDLED_FFMPEG:
+        return str(BUNDLED_FFMPEG)
+    location = _find_ffmpeg_location()
+    return str(Path(location) / "ffmpeg") if location else "ffmpeg"
+
+
+def verify_video_integrity(file_path, probe_seconds: int = 5) -> tuple[bool, str]:
+    """Check that the video track actually runs to the end of the container.
+
+    A partially downloaded video stream still produces a container whose header
+    advertises the *full* duration, so yt-dlp reports success and players show a
+    normal length — the picture simply freezes when the video track runs out
+    while the audio plays on. Decoding just the tail of the container catches
+    this for almost no cost: a healthy file decodes frames there, a truncated
+    one decodes none.
+
+    Returns (ok, detail). Anything inconclusive returns ok=True, so a problem
+    with the checker itself can never delete a good download.
+    """
+    try:
+        proc = subprocess.run(
+            [
+                _ffmpeg_exe(), "-hide_banner",
+                "-sseof", f"-{probe_seconds}",
+                "-i", str(file_path),
+                "-map", "0:v:0", "-f", "null", "-",
+            ],
+            capture_output=True, text=True, timeout=180,
+        )
+    except Exception as e:
+        return True, f"skipped ({e})"
+
+    frames = re.findall(r"frame=\s*(\d+)", proc.stderr)
+    if not frames:
+        return True, "inconclusive (ffmpeg reported no frame count)"
+    if int(frames[-1]) > 0:
+        return True, f"{frames[-1]} frames in final {probe_seconds}s"
+    return False, f"no video frames in final {probe_seconds}s — video track ends early"
+
+
+def _remove_from_archive(youtube_id: str) -> bool:
+    """Drop a video from the yt-dlp archive so the next run downloads it again."""
+    if not youtube_id or not os.path.exists(ARCHIVE_FILE):
+        return False
+    try:
+        with open(ARCHIVE_FILE, "r", encoding="utf-8") as f:
+            lines = f.readlines()
+        kept = [line for line in lines if youtube_id not in line]
+        if len(kept) == len(lines):
+            return False
+        with open(ARCHIVE_FILE, "w", encoding="utf-8") as f:
+            f.writelines(kept)
+        return True
+    except Exception as e:
+        logger.error(f"[ERROR] Could not update archive for {youtube_id}: {e}")
+        return False
+
+
+def _discard_truncated(file_path, youtube_id, session_factory=None):
+    """Delete a truncated download and un-archive it so it is retried."""
+    try:
+        os.remove(file_path)
+        logger.warning(f"[TRUNCATED] Deleted incomplete download: {file_path}")
+    except FileNotFoundError:
+        pass
+    except Exception as e:
+        logger.error(f"[ERROR] Could not delete {file_path}: {e}")
+
+    if _remove_from_archive(youtube_id):
+        logger.info(f"[TRUNCATED] Un-archived {youtube_id}; it will download again next run.")
+
+    if session_factory and youtube_id:
+        from app.models import Video
+        db = None
+        try:
+            db = session_factory()
+            db.query(Video).filter(Video.youtube_id == youtube_id).delete()
+            db.commit()
+        except Exception as e:
+            logger.error(f"[ERROR] Could not remove DB row for {youtube_id}: {e}")
+        finally:
+            if db is not None:
+                db.close()
+
+
+def verify_downloads(completed: list, counter: list, session_factory=None) -> int:
+    """Verify each finished download, discarding any with a truncated video track.
+
+    Returns the number of files discarded.
+    """
+    discarded = 0
+    for file_path, youtube_id in completed:
+        if not file_path or not os.path.exists(file_path):
+            continue
+        ok, detail = verify_video_integrity(file_path)
+        name = os.path.basename(file_path)
+        if ok:
+            logger.info(f"[VERIFY] OK — {name} ({detail})")
+            continue
+        discarded += 1
+        logger.error(f"[VERIFY] FAILED — {name}: {detail}")
+        _discard_truncated(file_path, youtube_id, session_factory)
+
+    counter[0] = max(0, counter[0] - discarded)
+    return discarded
+
+
+def make_hook(counter: list, channel_id=None, session_factory=None, log_id=None, completed=None):
     """Return (progress_hook, postprocessor_hook) sharing state.
 
     progress_hook    — updates the live queue UI; counts only single-stream downloads
@@ -125,9 +235,11 @@ def make_hook(counter: list, channel_id=None, session_factory=None, log_id=None)
                 counter[0] += 1
                 logger.info(f"[DOWNLOADED] {filename}")
                 state.set_current_video(None)
+                info = {**d.get("info_dict", {}), **last_info}
                 if session_factory:
-                    info = {**d.get("info_dict", {}), **last_info}
                     _save_video_to_db(session_factory, channel_id, info, filename, d.get("downloaded_bytes"), log_id=log_id)
+                if completed is not None:
+                    completed.append((filename, info.get("id", "")))
 
     def postprocessor_hook(d):
         pp_name = d.get("postprocessor", "unknown")
@@ -155,15 +267,17 @@ def make_hook(counter: list, channel_id=None, session_factory=None, log_id=None)
         counter[0] += 1
         logger.info(f"[DOWNLOADED] {filename}")
         state.set_current_video(None)
+        merged = {**info, **last_info}
         if session_factory:
-            merged = {**info, **last_info}
             file_size = info.get("filesize") or info.get("filesize_approx")
             _save_video_to_db(session_factory, channel_id, merged, filename, file_size, log_id=log_id)
+        if completed is not None:
+            completed.append((filename, merged.get("id", "")))
 
     return progress_hook, postprocessor_hook
 
 
-def make_tiktok_hook(counter: list, channel_id=None, session_factory=None, log_id=None):
+def make_tiktok_hook(counter: list, channel_id=None, session_factory=None, log_id=None, completed=None):
     """Return a TikTok progress hook that increments counter[0] on each completed download."""
     from app import state
     def hook(d):
@@ -186,9 +300,11 @@ def make_tiktok_hook(counter: list, channel_id=None, session_factory=None, log_i
             if ".mp4" in filename:
                 counter[0] += 1
                 logger.info(f"[DOWNLOADED] {filename}")
+                info = d.get("info_dict", {})
                 if session_factory:
-                    info = d.get("info_dict", {})
                     _save_video_to_db(session_factory, channel_id, info, filename, d.get("downloaded_bytes"), log_id=log_id)
+                if completed is not None:
+                    completed.append((filename, info.get("id", "")))
             filepath = Path(filename)
             stem = filepath.stem
             try:
@@ -284,6 +400,7 @@ def download_channel(channel, settings, session_factory=None, one_off=False, log
         Number of videos downloaded.
     """
     counter = [0]  # mutable container so hook can increment it
+    completed = []  # (file_path, youtube_id) for each finished download, verified below
 
     ffmpeg_loc = _find_ffmpeg_location()
     logger.info(f"[DOWNLOAD] ffmpeg location: {ffmpeg_loc!r}")
@@ -345,7 +462,7 @@ def download_channel(channel, settings, session_factory=None, one_off=False, log
                 postprocessors = [
                     {"key": "EmbedThumbnail"},
                 ]
-                progress_hook = make_tiktok_hook(counter, channel_id=channel_id, session_factory=session_factory, log_id=log_id)
+                progress_hook = make_tiktok_hook(counter, channel_id=channel_id, session_factory=session_factory, log_id=log_id, completed=completed)
                 pp_hook = None
             else:
                 fmt = "bestvideo[height<=1080][vcodec^=avc1]+bestaudio[acodec^=mp4a]/bestvideo[height<=1080]+bestaudio[acodec^=mp4a]/bestvideo[height<=1080]+bestaudio/best"
@@ -373,7 +490,7 @@ def download_channel(channel, settings, session_factory=None, one_off=False, log
                     },
                     {"key": "FFmpegMetadata"},
                 ]
-                progress_hook, pp_hook = make_hook(counter, channel_id=channel_id, session_factory=session_factory, log_id=log_id)
+                progress_hook, pp_hook = make_hook(counter, channel_id=channel_id, session_factory=session_factory, log_id=log_id, completed=completed)
 
             ydl_opts = {
                 "format": fmt,
@@ -415,6 +532,13 @@ def download_channel(channel, settings, session_factory=None, one_off=False, log
             if "not a bot" in str(e):
                 logger.warning("[WARNING] YouTube bot detection triggered, sleeping 5 minutes before retry...")
                 time.sleep(300)
+
+    discarded = verify_downloads(completed, counter, session_factory)
+    if discarded:
+        logger.warning(
+            f"[VERIFY] Discarded {discarded} truncated download(s) for {channel.name}; "
+            "they will be retried on the next run."
+        )
 
     return counter[0]
 
