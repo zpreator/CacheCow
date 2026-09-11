@@ -335,13 +335,17 @@ function setDirty(val) {
     const confirmed = document.getElementById("download-all-confirm")?.checked;
     btn.disabled = !val || (downloadAllOn && !confirmed);
 }
-(function() {
-    const form = document.querySelector('form[hx-put]');
-    form.addEventListener('input', () => setDirty(true));
-    form.addEventListener('change', () => setDirty(true));
-    form.addEventListener('htmx:afterRequest', function(e) {
-        if (e.detail.successful) setDirty(false);
+if (!window.__channelEditDirtyBound) {
+    window.__channelEditDirtyBound = true;
+    document.addEventListener('input', function(e) {
+        if (e.target.closest('form[hx-put]')) setDirty(true);
     });
-})();
+    document.addEventListener('change', function(e) {
+        if (e.target.closest('form[hx-put]')) setDirty(true);
+    });
+    document.addEventListener('htmx:afterRequest', function(e) {
+        if (e.detail.successful && e.target.closest('form[hx-put]')) setDirty(false);
+    });
+}
 </script>
 {% endblock %}

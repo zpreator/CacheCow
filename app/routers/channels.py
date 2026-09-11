@@ -512,7 +512,7 @@ async def update_channel(
 
     channel.subscribe = "subscribe" in form
     channel.tag_id = int(form["tag_id"])
-    channel.image = form.get("image", "").strip() or None
+    channel.image = form.get("image", "").strip()
     channel.use_global_settings = "use_global_settings" in form
     channel.download_all = "download_all" in form
     channel.max_duration = int(form.get("max_duration", 60))
