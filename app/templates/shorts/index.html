@@ -1,0 +1,264 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="shorts-overlay" id="shorts-app">
+    <div class="shorts-stage" id="shorts-stage">
+        <div class="shorts-progress" id="shorts-progress"><div class="shorts-progress-bar" id="shorts-progress-bar"></div></div>
+        <a href="/" class="shorts-close" aria-label="Close">&times;</a>
+
+        {% if has_shorts_tag %}
+        <video id="shorts-video" playsinline preload="auto"></video>
+
+        <div class="shorts-info" id="shorts-info">
+            <div class="shorts-channel">
+                <img id="shorts-channel-img" src="" alt="" style="display:none;">
+                <span id="shorts-channel-name"></span>
+            </div>
+            <div class="shorts-title" id="shorts-title"></div>
+        </div>
+
+        <div class="shorts-hint" id="shorts-hint"></div>
+        <button class="shorts-unmute-btn" id="shorts-unmute" style="display:none;">
+            🔇 Tap to unmute
+        </button>
+
+        <div class="shorts-state" id="shorts-state" style="display:none;">
+            <div class="shorts-spinner" id="shorts-spinner"></div>
+            <p id="shorts-state-text" style="margin:0;font-size:0.9rem;opacity:0.85;"></p>
+        </div>
+        {% else %}
+        <div class="shorts-state">
+            <p style="margin:0 0 0.75rem;font-size:1rem;">No "Shorts" category yet</p>
+            <p style="margin:0 0 1.25rem;font-size:0.85rem;opacity:0.8;">
+                Create a tag named <strong>shorts</strong> and assign it to your short-form channels
+                to use the fullscreen swipe player.
+            </p>
+            <a href="/channels" role="button" style="font-size:0.85rem;">Manage Channels</a>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+{% if has_shorts_tag %}
+<script>
+(function() {
+    var video = document.getElementById('shorts-video');
+    var stage = document.getElementById('shorts-stage');
+    var titleEl = document.getElementById('shorts-title');
+    var channelNameEl = document.getElementById('shorts-channel-name');
+    var channelImg = document.getElementById('shorts-channel-img');
+    var progressBar = document.getElementById('shorts-progress-bar');
+    var hintEl = document.getElementById('shorts-hint');
+    var unmuteBtn = document.getElementById('shorts-unmute');
+    var stateEl = document.getElementById('shorts-state');
+    var stateTextEl = document.getElementById('shorts-state-text');
+    var spinnerEl = document.getElementById('shorts-spinner');
+    var infoEl = document.getElementById('shorts-info');
+    var progressEl = document.getElementById('shorts-progress');
+
+    var history = [];
+    var index = -1;
+    var nextCache = null;
+    var locked = false;
+    var hintTimer = null;
+
+    function showHint(text, duration) {
+        hintEl.textContent = text;
+        hintEl.classList.add('visible');
+        clearTimeout(hintTimer);
+        hintTimer = setTimeout(function() { hintEl.classList.remove('visible'); }, duration || 1800);
+    }
+
+    function setPlayerVisible(visible) {
+        video.style.display = visible ? '' : 'none';
+        infoEl.style.display = visible ? '' : 'none';
+        progressEl.style.display = visible ? '' : 'none';
+        if (!visible) unmuteBtn.style.display = 'none';
+        stateEl.style.display = visible ? 'none' : 'flex';
+    }
+
+    function showLoading() {
+        spinnerEl.style.display = '';
+        stateTextEl.textContent = '';
+        setPlayerVisible(false);
+    }
+
+    function showEmpty(text) {
+        spinnerEl.style.display = 'none';
+        stateTextEl.textContent = text;
+        setPlayerVisible(false);
+    }
+
+    async function apiNext(excludeId) {
+        var url = excludeId ? ('/shorts/next?exclude=' + excludeId) : '/shorts/next';
+        var res = await fetch(url);
+        if (!res.ok) {
+            var data = await res.json().catch(function() { return {}; });
+            throw new Error(data.error || 'error');
+        }
+        return res.json();
+    }
+
+    function markSeen(id) {
+        fetch('/shorts/' + id + '/seen', { method: 'POST' }).catch(function() {});
+    }
+
+    function attemptPlay() {
+        video.muted = false;
+        unmuteBtn.style.display = 'none';
+        var p = video.play();
+        if (p && p.catch) {
+            p.catch(function() {
+                video.muted = true;
+                unmuteBtn.style.display = '';
+                video.play().catch(function() {});
+            });
+        }
+    }
+
+    function renderCurrent() {
+        var payload = history[index];
+        progressBar.style.width = '0%';
+        video.src = payload.stream_url;
+        video.currentTime = 0;
+        titleEl.textContent = payload.title || '';
+        channelNameEl.textContent = payload.channel_name || '';
+        if (payload.channel_image) {
+            channelImg.src = payload.channel_image;
+            channelImg.style.display = '';
+        } else {
+            channelImg.style.display = 'none';
+        }
+        setPlayerVisible(true);
+        attemptPlay();
+    }
+
+    async function prefetchNext(excludeId) {
+        try {
+            nextCache = await apiNext(excludeId);
+        } catch (e) {
+            nextCache = null;
+        }
+    }
+
+    async function goNext() {
+        if (locked) return;
+        locked = true;
+        try {
+            if (index < history.length - 1) {
+                index++;
+                renderCurrent();
+            } else {
+                var payload = nextCache;
+                nextCache = null;
+                var excludeId = history[index] ? history[index].id : 0;
+                if (!payload) {
+                    showLoading();
+                    payload = await apiNext(excludeId);
+                }
+                history.push(payload);
+                index++;
+                renderCurrent();
+                markSeen(payload.id);
+                if (payload.exhausted) showHint("You've seen them all — starting over", 2500);
+            }
+            prefetchNext(history[index].id);
+        } catch (e) {
+            if (e.message === 'empty' || e.message === 'no_tag') {
+                showEmpty('No videos found in the Shorts category yet.');
+            } else {
+                showHint('Could not load the next video');
+                setPlayerVisible(true);
+            }
+        } finally {
+            locked = false;
+        }
+    }
+
+    function goPrev() {
+        if (locked) return;
+        if (index <= 0) {
+            showHint("That's the first one");
+            return;
+        }
+        index--;
+        renderCurrent();
+    }
+
+    function togglePlay() {
+        if (video.paused) {
+            video.play().catch(function() {});
+        } else {
+            video.pause();
+        }
+    }
+
+    video.addEventListener('timeupdate', function() {
+        if (!video.duration) return;
+        progressBar.style.width = (video.currentTime / video.duration * 100) + '%';
+    });
+    video.addEventListener('ended', goNext);
+    video.addEventListener('click', togglePlay);
+    unmuteBtn.addEventListener('click', function(e) {
+        e.stopPropagation();
+        video.muted = false;
+        unmuteBtn.style.display = 'none';
+        video.play().catch(function() {});
+    });
+
+    var touchStartY = null;
+    var touchStartX = null;
+    stage.addEventListener('touchstart', function(e) {
+        touchStartY = e.touches[0].clientY;
+        touchStartX = e.touches[0].clientX;
+    }, { passive: true });
+    stage.addEventListener('touchend', function(e) {
+        if (touchStartY === null) return;
+        var dy = e.changedTouches[0].clientY - touchStartY;
+        var dx = e.changedTouches[0].clientX - touchStartX;
+        touchStartY = null;
+        if (Math.abs(dy) < 50 || Math.abs(dx) > Math.abs(dy)) return;
+        if (dy < 0) goNext(); else goPrev();
+    }, { passive: true });
+
+    var wheelLock = false;
+    stage.addEventListener('wheel', function(e) {
+        e.preventDefault();
+        if (wheelLock || Math.abs(e.deltaY) < 20) return;
+        wheelLock = true;
+        if (e.deltaY > 0) goNext(); else goPrev();
+        setTimeout(function() { wheelLock = false; }, 450);
+    }, { passive: false });
+
+    function onKeydown(e) {
+        if (e.key === 'ArrowDown') { e.preventDefault(); goNext(); }
+        else if (e.key === 'ArrowUp') { e.preventDefault(); goPrev(); }
+        else if (e.key === ' ') { e.preventDefault(); togglePlay(); }
+    }
+    document.addEventListener('keydown', onKeydown);
+
+    function cleanup() {
+        document.removeEventListener('keydown', onKeydown);
+        video.pause();
+    }
+    document.body.addEventListener('htmx:beforeSwap', cleanup, { once: true });
+
+    async function init() {
+        showLoading();
+        try {
+            var payload = await apiNext(0);
+            history = [payload];
+            index = 0;
+            renderCurrent();
+            markSeen(payload.id);
+            prefetchNext(payload.id);
+        } catch (e) {
+            showEmpty('No videos found in the Shorts category yet.');
+        }
+    }
+
+    init();
+})();
+</script>
+{% endif %}
+{% endblock %}
