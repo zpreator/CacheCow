@@ -16,6 +16,7 @@ from app.routers import home as home_router
 from app.routers import logs as logs_router
 from app.routers import queue as queue_router
 from app.routers import settings as settings_router
+from app.routers import shorts as shorts_router
 from app.routers import tags as tags_router
 
 
@@ -64,6 +65,7 @@ app.include_router(history_router.router)
 app.include_router(logs_router.router)
 app.include_router(queue_router.router)
 app.include_router(settings_router.router)
+app.include_router(shorts_router.router)
 app.include_router(tags_router.router)
 
 
