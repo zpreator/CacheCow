@@ -39,7 +39,7 @@ def clean_metadata(file_path, creator_name, video_title):
         "-metadata", f"artist={creator_name}",
         "-c", "copy",
         temp_path
-    ])
+    ], timeout=300)
     os.replace(temp_path, file_path)
 
 
@@ -527,6 +527,7 @@ def download_channel(channel, settings, session_factory=None, one_off=False, log
                 "merge_output_format": "mp4",
                 "playlist_items": playlist_items,
                 "download_archive": ARCHIVE_FILE,
+                "socket_timeout": 30,
                 "sleep_interval": settings.random_interval_lower,
                 "max_sleep_interval": settings.random_interval_upper,
                 "outtmpl": f"{settings.download_path}/{tag_name}/%(uploader)s/%(playlist)s/%(uploader)s - %(title)s.%(ext)s",
@@ -576,7 +577,7 @@ def download_channel(channel, settings, session_factory=None, one_off=False, log
 def _quick_video_info(url: str) -> dict:
     """Fast metadata extraction for a single video URL (no download)."""
     try:
-        with yt_dlp.YoutubeDL({"quiet": True, "skip_download": True, "logger": Logger()}) as ydl:
+        with yt_dlp.YoutubeDL({"quiet": True, "skip_download": True, "socket_timeout": 30, "logger": Logger()}) as ydl:
             info = ydl.extract_info(url, download=False)
             if info:
                 return {
