@@ -29,4 +29,10 @@ git merge --ff-only "origin/$BRANCH"
 docker compose build
 docker compose up -d
 
+# Every build leaves the previous image layers and build cache behind; on a
+# small root disk shared with other containers' thin-pool volumes, that grows
+# unbounded across deploys and can exhaust the pool. Prune after each deploy.
+docker image prune -af >/dev/null
+docker builder prune -af >/dev/null
+
 echo "$(date -Iseconds) deploy complete: now at $(git rev-parse --short HEAD)"
