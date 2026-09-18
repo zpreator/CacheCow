@@ -28,6 +28,24 @@ def _pick_random(query):
     return query.order_by(func.random()).first()
 
 
+def _detect_platform(link: str) -> str:
+    link_lower = (link or "").lower()
+    if "youtube.com" in link_lower or "youtu.be" in link_lower:
+        return "youtube"
+    if "tiktok.com" in link_lower:
+        return "tiktok"
+    return "other"
+
+
+def _shorts_stats(db: Session) -> dict:
+    query = _shorts_query(db)
+    if query is None:
+        return {"seen": 0, "total": 0}
+    total = query.count()
+    seen = query.filter(Video.watched.is_(True)).count()
+    return {"seen": seen, "total": total}
+
+
 def _video_payload(video: Video) -> dict:
     return {
         "id": video.id,
@@ -36,6 +54,7 @@ def _video_payload(video: Video) -> dict:
         "video_url": f"/videos/{video.id}",
         "channel_name": video.channel.name if video.channel else (video.uploader or ""),
         "channel_image": (video.channel.image if video.channel else "") or "",
+        "platform": _detect_platform(video.channel.link if video.channel else ""),
     }
 
 
@@ -73,6 +92,7 @@ async def next_short(exclude: int = 0, db: Session = Depends(get_db)):
 
     payload = _video_payload(video)
     payload["exhausted"] = exhausted
+    payload["stats"] = _shorts_stats(db)
     return JSONResponse(payload)
 
 
@@ -83,4 +103,4 @@ async def mark_seen(video_id: int, db: Session = Depends(get_db)):
         raise HTTPException(404)
     video.watched = True
     db.commit()
-    return JSONResponse({"ok": True})
+    return JSONResponse({"ok": True, "stats": _shorts_stats(db)})
