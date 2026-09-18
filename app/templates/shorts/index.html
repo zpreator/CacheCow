@@ -7,6 +7,12 @@
         <a href="/" class="shorts-close" aria-label="Close">&times;</a>
 
         {% if has_shorts_tag %}
+        <div class="shorts-progress-rail" id="shorts-progress-rail">
+            <div class="shorts-progress-fill" id="shorts-progress-fill"></div>
+        </div>
+        <div class="shorts-source-logo" id="shorts-source-logo"></div>
+        <div class="shorts-progress-count" id="shorts-progress-count"></div>
+
         <video id="shorts-video" playsinline preload="auto"></video>
 
         <div class="shorts-info" id="shorts-info">
@@ -55,12 +61,21 @@
     var spinnerEl = document.getElementById('shorts-spinner');
     var infoEl = document.getElementById('shorts-info');
     var progressEl = document.getElementById('shorts-progress');
+    var railFillEl = document.getElementById('shorts-progress-fill');
+    var countEl = document.getElementById('shorts-progress-count');
+    var sourceLogoEl = document.getElementById('shorts-source-logo');
+
+    var PLATFORM_ICONS = {
+        youtube: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><rect width="20" height="20" rx="4" fill="#FF0000"/><polygon points="8,6 8,14 14,10" fill="white"/></svg>',
+        tiktok: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><rect width="20" height="20" rx="4" fill="#010101"/><path d="M13.5 5c.3 1.2 1.1 2.1 2.5 2.3v2c-.9-.1-1.7-.4-2.5-1v4.5c0 1.8-1.4 3.2-3 3.2s-3-1.4-3-3.2 1.4-3.2 3-3.2c.2 0 .3 0 .5.1v2.1l-.5-.1c-.6 0-1.1.5-1.1 1.1s.5 1.1 1.1 1.1 1.1-.5 1.1-1.1V5h1.9z" fill="white"/></svg>'
+    };
 
     var history = [];
     var index = -1;
     var nextCache = null;
     var locked = false;
     var hintTimer = null;
+    var consecutiveErrors = 0;
 
     function showHint(text, duration) {
         hintEl.textContent = text;
@@ -100,7 +115,22 @@
     }
 
     function markSeen(id) {
-        fetch('/shorts/' + id + '/seen', { method: 'POST' }).catch(function() {});
+        fetch('/shorts/' + id + '/seen', { method: 'POST' })
+            .then(function(res) { return res.ok ? res.json() : null; })
+            .then(function(data) { if (data && data.stats) updateProgress(data.stats); })
+            .catch(function() {});
+    }
+
+    function updateProgress(stats) {
+        var pct = stats.total > 0 ? Math.round(stats.seen / stats.total * 100) : 0;
+        railFillEl.style.height = pct + '%';
+        countEl.textContent = stats.seen + '/' + stats.total;
+    }
+
+    function updateSourceLogo(platform) {
+        var icon = PLATFORM_ICONS[platform];
+        sourceLogoEl.innerHTML = icon || '';
+        sourceLogoEl.style.display = icon ? '' : 'none';
     }
 
     function attemptPlay() {
@@ -129,6 +159,7 @@
         } else {
             channelImg.style.display = 'none';
         }
+        updateSourceLogo(payload.platform);
         setPlayerVisible(true);
         attemptPlay();
     }
@@ -199,6 +230,17 @@
     });
     video.addEventListener('ended', goNext);
     video.addEventListener('click', togglePlay);
+    video.addEventListener('playing', function() { consecutiveErrors = 0; });
+    video.addEventListener('error', function() {
+        if (destroyed || !history[index]) return;
+        consecutiveErrors++;
+        if (consecutiveErrors > 5) {
+            showEmpty('Unable to load videos right now — check your library.');
+            return;
+        }
+        showHint('Skipping unavailable video');
+        goNext();
+    });
     unmuteBtn.addEventListener('click', function(e) {
         e.stopPropagation();
         video.muted = false;
@@ -237,7 +279,9 @@
     }
     document.addEventListener('keydown', onKeydown);
 
+    var destroyed = false;
     function cleanup() {
+        destroyed = true;
         document.removeEventListener('keydown', onKeydown);
         video.pause();
     }
@@ -247,6 +291,7 @@
         showLoading();
         try {
             var payload = await apiNext(0);
+            if (payload.stats) updateProgress(payload.stats);
             history = [payload];
             index = 0;
             renderCurrent();

@@ -782,6 +782,59 @@ fieldset[role="group"] > :last-child:active {
     transition: width 0.1s linear;
 }
 
+.shorts-source-logo {
+    position: absolute;
+    top: 0.9rem;
+    left: 0.9rem;
+    z-index: 3;
+    width: 28px;
+    height: 28px;
+    border-radius: 6px;
+    overflow: hidden;
+    line-height: 0;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.4);
+}
+
+.shorts-source-logo svg {
+    display: block;
+    width: 100%;
+    height: 100%;
+}
+
+.shorts-progress-rail {
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 4px;
+    background: rgba(255,255,255,0.15);
+    z-index: 2;
+}
+
+.shorts-progress-fill {
+    position: absolute;
+    left: 0;
+    bottom: 0;
+    width: 100%;
+    height: 0%;
+    background: #fff;
+    transition: height 0.3s ease;
+}
+
+.shorts-progress-count {
+    position: absolute;
+    top: 3.7rem;
+    left: 0.9rem;
+    z-index: 3;
+    color: #fff;
+    font-size: 0.7rem;
+    background: rgba(0,0,0,0.45);
+    padding: 0.15rem 0.45rem;
+    border-radius: 1rem;
+    pointer-events: none;
+    white-space: nowrap;
+}
+
 .shorts-close {
     position: absolute;
     top: 0.9rem;
