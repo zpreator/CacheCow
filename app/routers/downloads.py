@@ -31,7 +31,7 @@ async def trigger_download_all():
         response.headers["HX-Trigger"] = json.dumps({"showToast": "Download already in progress"})
         return response
 
-    submit_download(download_all_channels)
+    submit_download(download_all_channels, manual=True)
 
     response = HTMLResponse("")
     response.headers["HX-Trigger"] = json.dumps({"showToast": "Download started"})

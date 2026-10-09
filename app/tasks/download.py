@@ -24,10 +24,14 @@ def _set_progress(name, index, total, status="running", channel_id=None, phase="
     state.set_progress(**data)
 
 
-def download_all_channels():
+def download_all_channels(manual: bool = False):
+    """Download every subscribed channel. Scheduled runs (manual=False) honor the pause setting."""
     db = SessionLocal()
     try:
         settings = db.query(Settings).first()
+        if not manual and settings and settings.downloads_are_paused():
+            logger.info("[DOWNLOAD] Scheduled run skipped: downloads are paused.")
+            return
         if not settings or not settings.download_path:
             logger.info("No download path configured, skipping.")
             return

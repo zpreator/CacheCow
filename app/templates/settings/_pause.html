@@ -1,0 +1,17 @@
+<h3>Pause Downloads</h3>
+{% if settings.downloads_are_paused() %}
+<p><strong>Scheduled downloads are paused{% if settings.downloads_paused_until %} until {{ settings.downloads_paused_until.strftime("%b %d, %Y %I:%M %p") }}{% else %} indefinitely{% endif %}.</strong></p>
+{% else %}
+<p style="font-size:0.85rem;color:var(--pico-muted-color);">Scheduled downloads are active.</p>
+{% endif %}
+<p style="font-size:0.85rem;color:var(--pico-muted-color);">Pausing stops automatic runs only. Downloads you start manually still work.</p>
+<div style="display:flex;flex-wrap:wrap;gap:0.5rem;">
+    {% for value, label in [("1", "1 day"), ("2", "2 days"), ("3", "3 days"), ("indefinite", "Indefinitely")] %}
+    <button class="outline secondary" style="margin:0;" hx-put="/settings/pause" hx-vals='{"duration": "{{ value }}"}'
+            hx-target="#pause-section" hx-swap="innerHTML">Pause {{ label }}</button>
+    {% endfor %}
+    {% if settings.downloads_are_paused() %}
+    <button style="margin:0;" hx-put="/settings/pause" hx-vals='{"duration": "resume"}'
+            hx-target="#pause-section" hx-swap="innerHTML">Resume now</button>
+    {% endif %}
+</div>
