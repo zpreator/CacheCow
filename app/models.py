@@ -55,6 +55,14 @@ class Settings(Base):
     password_hash: Mapped[Optional[str]] = mapped_column(String(128), nullable=True)
     username: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
     setup_complete: Mapped[bool] = mapped_column(default=False)
+    # Pauses scheduled downloads. paused_until=None with paused=True means indefinitely.
+    downloads_paused: Mapped[bool] = mapped_column(default=False)
+    downloads_paused_until: Mapped[Optional[datetime]] = mapped_column(nullable=True)
+
+    def downloads_are_paused(self) -> bool:
+        if not self.downloads_paused:
+            return False
+        return self.downloads_paused_until is None or self.downloads_paused_until > datetime.now()
 
 
 class DownloadLog(Base):
@@ -105,6 +113,8 @@ def ensure_defaults(db):
     _add_column_if_missing(db, "settings", "password_hash", "VARCHAR(128)")
     _add_column_if_missing(db, "settings", "username", "VARCHAR(100)")
     _add_column_if_missing(db, "settings", "setup_complete", "BOOLEAN DEFAULT 0")
+    _add_column_if_missing(db, "settings", "downloads_paused", "BOOLEAN DEFAULT 0")
+    _add_column_if_missing(db, "settings", "downloads_paused_until", "DATETIME")
     _add_column_if_missing(db, "videos", "uploader", "VARCHAR(500)")
     _add_column_if_missing(db, "videos", "download_log_id", "INTEGER")
     _add_column_if_missing(db, "videos", "log_text", "TEXT")

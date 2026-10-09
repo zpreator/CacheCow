@@ -1,4 +1,5 @@
 import json
+from datetime import datetime, timedelta
 
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import HTMLResponse
@@ -52,6 +53,30 @@ async def update_global_settings(request: Request, db: Session = Depends(get_db)
 
     response = HTMLResponse("")
     response.headers["HX-Trigger"] = json.dumps({"showToast": "Global settings saved"})
+    return response
+
+
+@router.put("/pause", response_class=HTMLResponse)
+async def update_pause(request: Request, db: Session = Depends(get_db)):
+    form = await request.form()
+    s = _get_settings(db)
+    duration = form.get("duration", "resume")
+
+    if duration == "indefinite":
+        s.downloads_paused, s.downloads_paused_until = True, None
+        msg = "Scheduled downloads paused indefinitely"
+    elif duration in ("1", "2", "3"):
+        days = int(duration)
+        s.downloads_paused = True
+        s.downloads_paused_until = datetime.now() + timedelta(days=days)
+        msg = f"Scheduled downloads paused for {days} day{'s' if days > 1 else ''}"
+    else:
+        s.downloads_paused, s.downloads_paused_until = False, None
+        msg = "Scheduled downloads resumed"
+    db.commit()
+
+    response = templates.TemplateResponse(request, "settings/_pause.html", {"settings": s})
+    response.headers["HX-Trigger"] = json.dumps({"showToast": msg})
     return response
 
 
