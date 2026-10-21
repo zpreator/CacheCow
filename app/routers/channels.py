@@ -16,6 +16,7 @@ from sqlalchemy import func as sa_func
 
 from app.database import get_db
 from app.models import Channel, Tag, Video
+from app.services.ytdlp import make_ydl
 
 router = APIRouter(prefix="/channels")
 
@@ -92,7 +93,7 @@ def _extract_channel_info(url: str) -> dict | None:
         "playlistend": 1,
     }
     try:
-        with yt_dlp.YoutubeDL(ydl_opts_full) as ydl:
+        with make_ydl(ydl_opts_full) as ydl:
             info = ydl.extract_info(url, download=False)
             if info:
                 image = _best_thumbnail(info)
@@ -120,7 +121,7 @@ def _extract_channel_info(url: str) -> dict | None:
         "playlistend": 1,
     }
     try:
-        with yt_dlp.YoutubeDL(ydl_opts_flat) as ydl:
+        with make_ydl(ydl_opts_flat) as ydl:
             info = ydl.extract_info(url, download=False)
             if not info:
                 return None
@@ -151,7 +152,7 @@ def _search_youtube(query: str, count: int = 10) -> list[dict]:
     }
     results = []
     try:
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+        with make_ydl(ydl_opts) as ydl:
             info = ydl.extract_info(f"ytsearch{count}:{query}", download=False)
             if not info or "entries" not in info:
                 return []
@@ -380,7 +381,7 @@ def _fetch_channel_tabs(url: str) -> list[dict]:
             "skip_download": True,
             "extract_flat": True,
         }
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+        with make_ydl(ydl_opts) as ydl:
             info = ydl.extract_info(base_url + "/playlists", download=False)
             if info:
                 for entry in info.get("entries") or []:
@@ -410,7 +411,7 @@ async def get_channel_tabs(url: str = Query("")):
 def _fetch_video_count(url: str) -> int | None:
     """Return the total video count for a channel/playlist URL, or None if unknown."""
     try:
-        with yt_dlp.YoutubeDL({
+        with make_ydl({
             "quiet": True, "no_warnings": True,
             "skip_download": True, "extract_flat": True,
         }) as ydl:

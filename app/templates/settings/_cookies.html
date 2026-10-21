@@ -1,0 +1,23 @@
+<h3>YouTube Cookies</h3>
+<p style="font-size:0.85rem;color:var(--pico-muted-color);">
+    If downloads fail with "Sign in to confirm you're not a bot", upload a Netscape-format
+    <code>cookies.txt</code> exported from a browser signed in to YouTube. Export it from a
+    private/incognito window and close that window afterwards so YouTube doesn't rotate the cookies.
+    See the <a href="https://github.com/yt-dlp/yt-dlp/wiki/Extractors#exporting-youtube-cookies" target="_blank" rel="noopener">yt-dlp guide</a>.
+    The file is stored locally and used only for yt-dlp requests; consider a throwaway Google account.
+</p>
+{% if has_cookies %}
+<p><strong>Cookies uploaded.</strong> Re-upload when downloads start failing again.</p>
+{% endif %}
+<form hx-post="/settings/cookies" hx-encoding="multipart/form-data"
+      hx-target="#cookies-section" hx-swap="innerHTML">
+    <input type="file" name="cookies_file" accept=".txt,text/plain" required>
+    <div style="display:flex;gap:0.5rem;flex-wrap:wrap;">
+        <button type="submit" style="margin:0;">{{ "Replace cookies" if has_cookies else "Upload cookies" }}</button>
+        {% if has_cookies %}
+        <button type="button" class="outline secondary" style="margin:0;"
+                hx-delete="/settings/cookies" hx-target="#cookies-section" hx-swap="innerHTML"
+                hx-confirm="Remove the stored YouTube cookies?">Remove</button>
+        {% endif %}
+    </div>
+</form>

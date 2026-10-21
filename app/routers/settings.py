@@ -1,7 +1,7 @@
 import json
 from datetime import datetime, timedelta
 
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, File, Request, UploadFile
 from fastapi.responses import HTMLResponse
 from app.templating import templates
 from sqlalchemy.orm import Session
@@ -10,6 +10,7 @@ from app.auth import hash_password, verify_password
 from app.config import settings as app_settings
 from app.database import get_db
 from app.models import Settings, Tag
+from app.paths import YOUTUBE_COOKIES_FILE
 
 router = APIRouter(prefix="/settings")
 
@@ -29,6 +30,7 @@ async def settings_page(request: Request, db: Session = Depends(get_db)):
     tags = db.query(Tag).order_by(Tag.name).all()
     return templates.TemplateResponse(request, "settings/index.html", {
         "settings": s,
+        "has_cookies": YOUTUBE_COOKIES_FILE.is_file(),
         "tags": tags,
         "active_page": "settings",
     })
@@ -78,6 +80,45 @@ async def update_pause(request: Request, db: Session = Depends(get_db)):
     response = templates.TemplateResponse(request, "settings/_pause.html", {"settings": s})
     response.headers["HX-Trigger"] = json.dumps({"showToast": msg})
     return response
+
+
+def _cookies_response(request: Request, msg: str | None = None):
+    response = templates.TemplateResponse(request, "settings/_cookies.html", {
+        "has_cookies": YOUTUBE_COOKIES_FILE.is_file(),
+    })
+    if msg:
+        response.headers["HX-Trigger"] = json.dumps({"showToast": msg})
+    return response
+
+
+@router.post("/cookies", response_class=HTMLResponse)
+async def upload_cookies(request: Request, cookies_file: UploadFile = File(...)):
+    raw = await cookies_file.read(1024 * 1024 + 1)
+    if len(raw) > 1024 * 1024:
+        return _cookies_response(request, "Cookies file is too large")
+    try:
+        text = raw.decode("utf-8")
+    except UnicodeDecodeError:
+        return _cookies_response(request, "Not a valid cookies.txt file")
+
+    # Netscape format: tab-separated lines; require at least one YouTube/Google entry.
+    has_entry = any(
+        line.count("\t") >= 6 and ("youtube.com" in line or "google.com" in line)
+        for line in text.splitlines() if not line.startswith("# ") or line.startswith("#HttpOnly_")
+    )
+    if not has_entry:
+        return _cookies_response(request, "No YouTube cookies found. Export a Netscape-format cookies.txt")
+
+    YOUTUBE_COOKIES_FILE.parent.mkdir(parents=True, exist_ok=True)
+    YOUTUBE_COOKIES_FILE.write_text(text, encoding="utf-8")
+    YOUTUBE_COOKIES_FILE.chmod(0o600)
+    return _cookies_response(request, "YouTube cookies saved")
+
+
+@router.delete("/cookies", response_class=HTMLResponse)
+async def delete_cookies(request: Request):
+    YOUTUBE_COOKIES_FILE.unlink(missing_ok=True)
+    return _cookies_response(request, "YouTube cookies removed")
 
 
 @router.put("/download-path", response_class=HTMLResponse)
