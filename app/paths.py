@@ -55,6 +55,7 @@ DB_PATH: Path = DATA_DIR / "cachecow.db"
 LOG_FILE: Path = DATA_DIR / "cachecow.log"
 ARCHIVE_FILE: Path = DATA_DIR / "archive.txt"
 UPLOADS_DIR: Path = DATA_DIR / "uploads"
+YOUTUBE_COOKIES_FILE: Path = DATA_DIR / "youtube_cookies.txt"
 
 
 def _default_download_dir() -> Path:

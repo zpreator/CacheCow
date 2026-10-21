@@ -12,6 +12,7 @@ from yt_dlp.postprocessor import MetadataParserPP
 
 from app.logging_config import logger, pop_video_log, set_log_video
 from app.paths import ARCHIVE_FILE as _ARCHIVE_FILE_PATH
+from app.services.ytdlp import make_ydl
 ARCHIVE_FILE = str(_ARCHIVE_FILE_PATH)
 
 
@@ -554,7 +555,7 @@ def download_channel(channel, settings, session_factory=None, one_off=False, log
             if format_sort:
                 ydl_opts["format_sort"] = format_sort
 
-            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            with make_ydl(ydl_opts) as ydl:
                 ydl.download([link.strip()])
             break
         except Exception as e:
@@ -577,7 +578,7 @@ def download_channel(channel, settings, session_factory=None, one_off=False, log
 def _quick_video_info(url: str) -> dict:
     """Fast metadata extraction for a single video URL (no download)."""
     try:
-        with yt_dlp.YoutubeDL({"quiet": True, "skip_download": True, "socket_timeout": 30, "logger": Logger()}) as ydl:
+        with make_ydl({"quiet": True, "skip_download": True, "socket_timeout": 30, "logger": Logger()}) as ydl:
             info = ydl.extract_info(url, download=False)
             if info:
                 return {
@@ -607,7 +608,7 @@ def _extract_channel_info(url: str) -> dict:
         "logger": Logger(),
     }
     try:
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+        with make_ydl(ydl_opts) as ydl:
             info = ydl.extract_info(url, download=False)
             if not info:
                 raise ValueError("No info")
@@ -625,7 +626,7 @@ def _extract_channel_info(url: str) -> dict:
         "logger": Logger(),
     }
     try:
-        with yt_dlp.YoutubeDL(flat_opts) as ydl:
+        with make_ydl(flat_opts) as ydl:
             info = ydl.extract_info(url, download=False)
             if not info:
                 return {}
@@ -646,7 +647,7 @@ def _extract_channel_icon(url: str) -> str:
         "logger": Logger(),
     }
     try:
-        with yt_dlp.YoutubeDL(flat_opts) as ydl:
+        with make_ydl(flat_opts) as ydl:
             info = ydl.extract_info(url, download=False)
             if info:
                 thumbnails = info.get("thumbnails") or []
@@ -668,7 +669,7 @@ def _search_youtube(query: str, count: int = 10) -> list[dict]:
     results = []
     seen_names = set()
     try:
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+        with make_ydl(ydl_opts) as ydl:
             info = ydl.extract_info(f"ytsearch{count}:{query}", download=False)
             for entry in info.get("entries", []):
                 channel = entry.get("channel") or entry.get("uploader") or ""
@@ -692,7 +693,7 @@ def search_youtube_videos(query: str, count: int = 20) -> list[dict]:
     }
     results = []
     try:
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+        with make_ydl(ydl_opts) as ydl:
             info = ydl.extract_info(f"ytsearch{count}:{query}", download=False)
             for entry in info.get("entries", []):
                 video_id = entry.get("id", "")
