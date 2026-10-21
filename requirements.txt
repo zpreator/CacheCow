@@ -4,7 +4,8 @@ jinja2
 python-multipart
 sqlalchemy
 apscheduler
-yt-dlp
+yt-dlp[default]
+deno
 python-dotenv
 itsdangerous
 pydantic-settings
