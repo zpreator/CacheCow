@@ -1,6 +1,6 @@
 <h3>Pause Downloads</h3>
 {% if settings.downloads_are_paused() %}
-<p><strong>Scheduled downloads are paused{% if settings.downloads_paused_until %} until {{ settings.downloads_paused_until.strftime("%b %d, %Y %I:%M %p") }}{% else %} indefinitely{% endif %}.</strong></p>
+<p><strong>Scheduled downloads are paused{% if settings.downloads_paused_until %} until {{ settings.downloads_paused_until.strftime("%b %d, %Y %I:%M %p") }}{% else %} indefinitely{% endif %}.</strong>{% if settings.downloads_pause_reason %} Auto-paused: {{ settings.downloads_pause_reason }}.{% endif %}</p>
 {% else %}
 <p style="font-size:0.85rem;color:var(--pico-muted-color);">Scheduled downloads are active.</p>
 {% endif %}

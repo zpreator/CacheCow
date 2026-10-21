@@ -9,6 +9,15 @@
 {% if has_cookies %}
 <p><strong>Cookies uploaded.</strong> Re-upload when downloads start failing again.</p>
 {% endif %}
+<ul style="font-size:0.85rem;">
+    <li>Last successful YouTube request:
+        {% if settings.youtube_last_ok_at %}<strong>{{ settings.youtube_last_ok_at.strftime("%b %d, %Y %I:%M %p") }}</strong>{% else %}<em>none recorded yet</em>{% endif %}</li>
+    {% if settings.youtube_last_block_at %}
+    <li>Last block: <strong>{{ settings.youtube_last_block_at.strftime("%b %d, %Y %I:%M %p") }}</strong>
+        ({{ settings.youtube_block_streak }} in a row)
+        <br><span style="color:var(--pico-muted-color);">{{ settings.youtube_last_block_reason }}</span></li>
+    {% endif %}
+</ul>
 <form hx-post="/settings/cookies" hx-encoding="multipart/form-data"
       hx-target="#cookies-section" hx-swap="innerHTML">
     <input type="file" name="cookies_file" accept=".txt,text/plain" required>
