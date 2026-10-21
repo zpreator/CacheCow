@@ -8,7 +8,7 @@ def update_ytdlp():
     logger.info("Updating yt-dlp...")
     try:
         subprocess.check_call(
-            [sys.executable, "-m", "pip", "install", "--upgrade", "yt_dlp"],
+            [sys.executable, "-m", "pip", "install", "--upgrade", "yt_dlp[default]"],
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
         )
