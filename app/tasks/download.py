@@ -1,5 +1,6 @@
 import random
 import time
+from datetime import datetime
 
 from sqlalchemy import func
 
@@ -7,6 +8,7 @@ from app import state
 from app.database import SessionLocal
 from app.logging_config import logger
 from app.models import Channel, DownloadLog, Settings, Tag
+from app.services.botguard import YouTubeBlocked
 from app.services.downloader import clean_fragments, download_channel, _quick_video_info
 
 
@@ -42,6 +44,21 @@ def download_all_channels(manual: bool = False):
             .order_by(Channel.name)
             .all()
         )
+        if not manual:
+            # Scheduled runs rotate through channels, least recently checked first,
+            # and only touch a limited number per run to keep request volume low.
+            last_checked = dict(
+                db.query(DownloadLog.channel_id, func.max(DownloadLog.started_at))
+                .filter(DownloadLog.channel_id.isnot(None))
+                .group_by(DownloadLog.channel_id)
+                .all()
+            )
+            channels.sort(key=lambda c: (last_checked.get(c.id) or datetime.min, c.name))
+            cap = settings.max_channels_per_run or 0
+            if cap and len(channels) > cap:
+                logger.info(f"[DOWNLOAD] Checking {cap} of {len(channels)} channels this run (oldest first).")
+                channels = channels[:cap]
+
         total = len(channels)
         if total == 0:
             logger.info("No subscribed channels.")
@@ -60,11 +77,18 @@ def download_all_channels(manual: bool = False):
             db.add(log)
             db.commit()
 
+            blocked = False
             try:
                 count = download_channel(channel, settings, session_factory=SessionLocal, log_id=log.id)
                 log.status = "completed"
                 log.videos_downloaded = count
                 logger.info(f"[DOWNLOAD] Completed: {channel.name} — {count} video(s) downloaded")
+            except YouTubeBlocked as e:
+                blocked = True
+                log.status = "failed"
+                log.videos_downloaded = e.count
+                log.error_message = f"YouTube blocked requests: {e}"
+                logger.error(f"[ERROR] Failed: {channel.name}: YouTube blocked requests; stopping this run.")
             except Exception as e:
                 log.status = "failed"
                 log.error_message = str(e)
@@ -73,6 +97,9 @@ def download_all_channels(manual: bool = False):
             state.set_current_video(None)
             log.finished_at = func.now()
             db.commit()
+
+            if blocked:
+                break
 
             if i < total - 1 and not state.is_cancelled():
                 sleep_time = random.randint(
@@ -114,6 +141,11 @@ def download_single_channel(channel_id: int):
             log.status = "completed"
             log.videos_downloaded = count
             logger.info(f"[DOWNLOAD] Completed: {channel.name} — {count} video(s) downloaded")
+        except YouTubeBlocked as e:
+            log.status = "failed"
+            log.videos_downloaded = e.count
+            log.error_message = f"YouTube blocked requests: {e}"
+            logger.error(f"[ERROR] Failed: {channel.name}: YouTube blocked requests.")
         except Exception as e:
             log.status = "failed"
             log.error_message = str(e)

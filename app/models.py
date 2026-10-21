@@ -58,6 +58,14 @@ class Settings(Base):
     # Pauses scheduled downloads. paused_until=None with paused=True means indefinitely.
     downloads_paused: Mapped[bool] = mapped_column(default=False)
     downloads_paused_until: Mapped[Optional[datetime]] = mapped_column(nullable=True)
+    downloads_pause_reason: Mapped[Optional[str]] = mapped_column(String(200), nullable=True)
+    # Scheduled runs check at most this many channels (least recently checked first); 0 = all.
+    max_channels_per_run: Mapped[int] = mapped_column(default=15)
+    # YouTube health, maintained by app/services/botguard.py
+    youtube_last_ok_at: Mapped[Optional[datetime]] = mapped_column(nullable=True)
+    youtube_last_block_at: Mapped[Optional[datetime]] = mapped_column(nullable=True)
+    youtube_last_block_reason: Mapped[Optional[str]] = mapped_column(String(300), nullable=True)
+    youtube_block_streak: Mapped[int] = mapped_column(default=0)
 
     def downloads_are_paused(self) -> bool:
         if not self.downloads_paused:
@@ -115,6 +123,12 @@ def ensure_defaults(db):
     _add_column_if_missing(db, "settings", "setup_complete", "BOOLEAN DEFAULT 0")
     _add_column_if_missing(db, "settings", "downloads_paused", "BOOLEAN DEFAULT 0")
     _add_column_if_missing(db, "settings", "downloads_paused_until", "DATETIME")
+    _add_column_if_missing(db, "settings", "downloads_pause_reason", "VARCHAR(200)")
+    _add_column_if_missing(db, "settings", "max_channels_per_run", "INTEGER DEFAULT 15")
+    _add_column_if_missing(db, "settings", "youtube_last_ok_at", "DATETIME")
+    _add_column_if_missing(db, "settings", "youtube_last_block_at", "DATETIME")
+    _add_column_if_missing(db, "settings", "youtube_last_block_reason", "VARCHAR(300)")
+    _add_column_if_missing(db, "settings", "youtube_block_streak", "INTEGER DEFAULT 0")
     _add_column_if_missing(db, "videos", "uploader", "VARCHAR(500)")
     _add_column_if_missing(db, "videos", "download_log_id", "INTEGER")
     _add_column_if_missing(db, "videos", "log_text", "TEXT")
