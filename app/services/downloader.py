@@ -389,6 +389,39 @@ def match_filter(info_dict, keywords, excludes, max_duration_min=None):
     return None
 
 
+def youtube_formats_degraded(info_dict):
+    """Return a skip reason if YouTube handed back a crippled format list.
+
+    When YouTube rejects the request (stale/rotated cookies, missing PO token, a
+    failed JS challenge, bot throttling) yt-dlp still "succeeds" but only sees the
+    old muxed fallback (format 18 — 360p, 480x360 for 4:3 sources) or nothing but
+    storyboards. Every real YouTube video, even ancient 240p ones, has separate
+    video-only DASH/HLS streams, so their absence means the list is degraded, not
+    that the video is low quality. Skipping (rather than downloading `best`) keeps
+    the video out of the download archive so it's retried on the next run.
+    """
+    formats = info_dict.get("formats")
+    if not formats:
+        return None  # flat playlist entry; the full info is checked later
+    video_only = [
+        f for f in formats
+        if f.get("vcodec") not in (None, "none") and f.get("acodec") == "none"
+    ]
+    if video_only:
+        best = max((f.get("height") or 0) for f in video_only)
+        logger.info(f"[FORMATS] {info_dict.get('id')}: best available video stream {best}p")
+        return None
+    title = info_dict.get("title", "")
+    reason = (
+        f"Skipping '{title}': YouTube only offered low-quality fallback formats "
+        f"({', '.join(sorted({str(f.get('format_id')) for f in formats}))}). "
+        "This usually means the request was blocked or throttled (expired cookies, "
+        "missing PO token, or bot check); it will be retried next run."
+    )
+    logger.warning(f"[WARNING] {reason}")
+    return reason
+
+
 def clean_fragments(download_dir):
     frag_patterns = [
         "*.part-Frag*.part",
@@ -483,6 +516,14 @@ def download_channel(channel, settings, session_factory=None, one_off=False, log
             if re.match(r"https?://(?:www\.)?youtube\.com/@[^/]+$", link):
                 link = link + "/videos"
 
+            is_tiktok = "tiktok" in link.lower()
+
+            def match_fn(info):
+                reason = match_filter(info, keywords, excludes, max_duration)
+                if reason or is_tiktok:
+                    return reason
+                return youtube_formats_degraded(info)
+
             if "tiktok" in link.lower():
                 fmt = "bestvideo+bestaudio/best"
                 # TikTok's h265/bytevc1 formats often report acodec=aac in yt-dlp's
@@ -532,7 +573,7 @@ def download_channel(channel, settings, session_factory=None, one_off=False, log
                 "sleep_interval": settings.random_interval_lower,
                 "max_sleep_interval": settings.random_interval_upper,
                 "outtmpl": f"{settings.download_path}/{tag_name}/%(uploader)s/%(playlist)s/%(uploader)s - %(title)s.%(ext)s",
-                "match_filter": lambda x: match_filter(x, keywords, excludes, max_duration),
+                "match_filter": match_fn,
                 "progress_hooks": [progress_hook],
                 "postprocessor_hooks": [pp_hook] if pp_hook else [],
                 "writethumbnail": True,
