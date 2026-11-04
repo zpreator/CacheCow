@@ -39,8 +39,26 @@ def _download_path_missing() -> bool:
         return False
 
 
+def _youtube_alert() -> dict | None:
+    """Info for the global banner when scheduled downloads were auto-paused by a YouTube block."""
+    try:
+        from app.database import SessionLocal
+        from app.models import Settings
+        db = SessionLocal()
+        try:
+            s = db.query(Settings).first()
+            if s and s.downloads_are_paused() and s.downloads_pause_reason:
+                return {"reason": s.downloads_pause_reason, "until": s.downloads_paused_until}
+            return None
+        finally:
+            db.close()
+    except Exception:
+        return None
+
+
 from app.paths import TEMPLATES_DIR
 templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
 templates.env.filters["localtime"] = _localtime
 templates.env.globals["download_path_missing"] = _download_path_missing
+templates.env.globals["youtube_alert"] = _youtube_alert
 templates.env.globals["asset_version"] = _asset_version()

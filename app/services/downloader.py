@@ -12,6 +12,7 @@ from yt_dlp.postprocessor import MetadataParserPP
 
 from app.logging_config import logger, pop_video_log, set_log_video
 from app.paths import ARCHIVE_FILE as _ARCHIVE_FILE_PATH
+from app.services import botguard
 from app.services.ytdlp import make_ydl
 ARCHIVE_FILE = str(_ARCHIVE_FILE_PATH)
 
@@ -29,6 +30,7 @@ class Logger:
 
     def error(self, msg):
         if "--break-on-existing" not in msg:
+            botguard.note_message(msg)
             logger.error(f"[ERROR] {msg}")
 
 
@@ -447,6 +449,8 @@ def download_channel(channel, settings, session_factory=None, one_off=False, log
         logger.error(f"[ERROR] Cannot create download directory '{download_dir}': {e}")
         return 0
 
+    run_started = time.time()
+    blocked_reason = None
     for attempt in range(3):
         try:
             if channel.use_global_settings:
@@ -529,6 +533,12 @@ def download_channel(channel, settings, session_factory=None, one_off=False, log
                 "playlist_items": playlist_items,
                 "download_archive": ARCHIVE_FILE,
                 "socket_timeout": 30,
+                # Space out the metadata requests too, and back off exponentially on retries.
+                "sleep_interval_requests": 1,
+                "retry_sleep_functions": {
+                    "http": lambda n: min(2 ** n, 30),
+                    "extractor": lambda n: min(2 ** n, 30),
+                },
                 "sleep_interval": settings.random_interval_lower,
                 "max_sleep_interval": settings.random_interval_upper,
                 "outtmpl": f"{settings.download_path}/{tag_name}/%(uploader)s/%(playlist)s/%(uploader)s - %(title)s.%(ext)s",
@@ -557,13 +567,16 @@ def download_channel(channel, settings, session_factory=None, one_off=False, log
 
             with make_ydl(ydl_opts) as ydl:
                 ydl.download([link.strip()])
+            # ignoreerrors swallows per-video failures, so check what the logger saw.
+            blocked_reason = botguard.blocked_since(run_started)
             break
         except Exception as e:
             if "--break-on-existing" not in str(e):
                 logger.error(f"[ERROR] {channel.name}: {e}")
-            if "not a bot" in str(e):
-                logger.warning("[WARNING] YouTube bot detection triggered, sleeping 5 minutes before retry...")
-                time.sleep(300)
+            if botguard.is_block_message(e, assume_youtube="tiktok" not in channel.link.lower()):
+                # Retrying only digs the hole deeper; stop and let the caller back off.
+                blocked_reason = str(e)[:300]
+                break
 
     discarded = verify_downloads(completed, counter, session_factory)
     if discarded:
@@ -572,6 +585,11 @@ def download_channel(channel, settings, session_factory=None, one_off=False, log
             "they will be retried on the next run."
         )
 
+    if blocked_reason:
+        botguard.record_block(blocked_reason)
+        raise botguard.YouTubeBlocked(blocked_reason, count=counter[0])
+    if "tiktok" not in channel.link.lower():
+        botguard.record_ok()
     return counter[0]
 
 

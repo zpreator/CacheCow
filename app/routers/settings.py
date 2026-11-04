@@ -47,6 +47,7 @@ async def update_global_settings(request: Request, db: Session = Depends(get_db)
     s.max_duration = int(form.get("max_duration", 60))
     s.days = int(form.get("days", 8))
     s.items = int(form.get("items", 5))
+    s.max_channels_per_run = max(int(form.get("max_channels_per_run", 15)), 0)
 
     db.commit()
 
@@ -66,14 +67,18 @@ async def update_pause(request: Request, db: Session = Depends(get_db)):
 
     if duration == "indefinite":
         s.downloads_paused, s.downloads_paused_until = True, None
+        s.downloads_pause_reason = None
         msg = "Scheduled downloads paused indefinitely"
     elif duration in ("1", "2", "3"):
         days = int(duration)
         s.downloads_paused = True
         s.downloads_paused_until = datetime.now() + timedelta(days=days)
+        s.downloads_pause_reason = None
         msg = f"Scheduled downloads paused for {days} day{'s' if days > 1 else ''}"
     else:
         s.downloads_paused, s.downloads_paused_until = False, None
+        s.downloads_pause_reason = None
+        s.youtube_block_streak = 0
         msg = "Scheduled downloads resumed"
     db.commit()
 
@@ -82,9 +87,10 @@ async def update_pause(request: Request, db: Session = Depends(get_db)):
     return response
 
 
-def _cookies_response(request: Request, msg: str | None = None):
+def _cookies_response(request: Request, db: Session, msg: str | None = None):
     response = templates.TemplateResponse(request, "settings/_cookies.html", {
         "has_cookies": YOUTUBE_COOKIES_FILE.is_file(),
+        "settings": _get_settings(db),
     })
     if msg:
         response.headers["HX-Trigger"] = json.dumps({"showToast": msg})
@@ -92,14 +98,14 @@ def _cookies_response(request: Request, msg: str | None = None):
 
 
 @router.post("/cookies", response_class=HTMLResponse)
-async def upload_cookies(request: Request, cookies_file: UploadFile = File(...)):
+async def upload_cookies(request: Request, cookies_file: UploadFile = File(...), db: Session = Depends(get_db)):
     raw = await cookies_file.read(1024 * 1024 + 1)
     if len(raw) > 1024 * 1024:
-        return _cookies_response(request, "Cookies file is too large")
+        return _cookies_response(request, db, "Cookies file is too large")
     try:
         text = raw.decode("utf-8")
     except UnicodeDecodeError:
-        return _cookies_response(request, "Not a valid cookies.txt file")
+        return _cookies_response(request, db, "Not a valid cookies.txt file")
 
     # Netscape format: tab-separated lines; require at least one YouTube/Google entry.
     has_entry = any(
@@ -107,18 +113,18 @@ async def upload_cookies(request: Request, cookies_file: UploadFile = File(...))
         for line in text.splitlines() if not line.startswith("# ") or line.startswith("#HttpOnly_")
     )
     if not has_entry:
-        return _cookies_response(request, "No YouTube cookies found. Export a Netscape-format cookies.txt")
+        return _cookies_response(request, db, "No YouTube cookies found. Export a Netscape-format cookies.txt")
 
     YOUTUBE_COOKIES_FILE.parent.mkdir(parents=True, exist_ok=True)
     YOUTUBE_COOKIES_FILE.write_text(text, encoding="utf-8")
     YOUTUBE_COOKIES_FILE.chmod(0o600)
-    return _cookies_response(request, "YouTube cookies saved")
+    return _cookies_response(request, db, "YouTube cookies saved")
 
 
 @router.delete("/cookies", response_class=HTMLResponse)
-async def delete_cookies(request: Request):
+async def delete_cookies(request: Request, db: Session = Depends(get_db)):
     YOUTUBE_COOKIES_FILE.unlink(missing_ok=True)
-    return _cookies_response(request, "YouTube cookies removed")
+    return _cookies_response(request, db, "YouTube cookies removed")
 
 
 @router.put("/download-path", response_class=HTMLResponse)

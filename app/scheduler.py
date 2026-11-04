@@ -3,13 +3,16 @@ from apscheduler.schedulers.background import BackgroundScheduler
 
 scheduler = BackgroundScheduler()
 
+# Randomise each run by up to this many seconds so requests never arrive on a fixed beat.
+SCHEDULE_JITTER_SECONDS = 600
+
 
 def update_download_schedule(minutes: int) -> None:
     """Update or add the scheduled-download job interval."""
     try:
         if scheduler.get_job("scheduled-download"):
             scheduler.reschedule_job(
-                "scheduled-download", trigger="interval", minutes=minutes
+                "scheduled-download", trigger="interval", minutes=minutes, jitter=SCHEDULE_JITTER_SECONDS
             )
         else:
             from app.tasks.download import download_all_channels
@@ -17,7 +20,7 @@ def update_download_schedule(minutes: int) -> None:
                 download_all_channels,
                 "interval",
                 minutes=minutes,
-                id="scheduled-download",
+                id="scheduled-download", jitter=SCHEDULE_JITTER_SECONDS,
                 replace_existing=True,
             )
         print(f"[SCHEDULE] Download interval set to {minutes} minutes")
@@ -37,7 +40,7 @@ def start() -> None:
                 download_all_channels,
                 "interval",
                 minutes=360,
-                id="scheduled-download",
+                id="scheduled-download", jitter=SCHEDULE_JITTER_SECONDS,
                 replace_existing=True,
             )
         if not scheduler.get_job("daily-cleanup"):

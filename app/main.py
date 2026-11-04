@@ -29,13 +29,13 @@ async def lifespan(app: FastAPI):
         ensure_defaults(db)
         s = db.query(Settings).first()
 
-        from app.scheduler import scheduler
+        from app.scheduler import scheduler, SCHEDULE_JITTER_SECONDS
         if s:
             # Add jobs before starting, using the saved interval
             from app.tasks.download import download_all_channels
             from app.tasks.cleanup import cleanup_old_files
             from app.tasks.update_ytdlp import update_ytdlp
-            scheduler.add_job(download_all_channels, "interval", minutes=s.minutes_between_runs, id="scheduled-download", replace_existing=True)
+            scheduler.add_job(download_all_channels, "interval", minutes=s.minutes_between_runs, id="scheduled-download", jitter=SCHEDULE_JITTER_SECONDS, replace_existing=True)
             scheduler.add_job(cleanup_old_files, "interval", hours=24, id="daily-cleanup", replace_existing=True)
             scheduler.add_job(update_ytdlp, "interval", hours=24, id="daily-ytdlp-update", replace_existing=True)
         scheduler.start()

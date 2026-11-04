@@ -51,6 +51,16 @@
                 <a href="/settings" style="white-space:nowrap;font-weight:600;">Go to Settings →</a>
             </div>
             {% endif %}
+            {% set yt_alert = youtube_alert() %}
+            {% if yt_alert %}
+            <div style="background:color-mix(in srgb,var(--pico-color-amber-500) 15%,transparent);
+                        border:1px solid var(--pico-color-amber-500);border-radius:var(--pico-border-radius);
+                        padding:0.6rem 1rem;margin-bottom:1.25rem;font-size:0.875rem;display:flex;
+                        align-items:center;justify-content:space-between;gap:1rem;">
+                <span>⚠ Scheduled downloads auto-paused{% if yt_alert.until %} until {{ yt_alert.until.strftime("%b %d, %I:%M %p") }}{% endif %}: {{ yt_alert.reason }}. Refresh your YouTube cookies.</span>
+                <a href="/settings" style="white-space:nowrap;font-weight:600;">Settings →</a>
+            </div>
+            {% endif %}
             {% block content %}{% endblock %}
         </main>
     </div>
