@@ -26,7 +26,7 @@ def _set_progress(name, index, total, status="running", channel_id=None, phase="
     state.set_progress(**data)
 
 
-def download_all_channels(manual: bool = False):
+def _download_all_channels(manual: bool = False):
     """Download every subscribed channel. Scheduled runs (manual=False) honor the pause setting."""
     db = SessionLocal()
     try:
@@ -120,7 +120,7 @@ def download_all_channels(manual: bool = False):
         db.close()
 
 
-def download_single_channel(channel_id: int):
+def _download_single_channel(channel_id: int):
     db = SessionLocal()
     try:
         channel = db.query(Channel).get(channel_id)
@@ -163,7 +163,7 @@ def download_single_channel(channel_id: int):
         db.close()
 
 
-def download_single_video(url: str, tag_name: str | None = None, log_id: int | None = None):
+def _download_single_video(url: str, tag_name: str | None = None, log_id: int | None = None):
     """Download a single video URL without a channel subscription."""
     db = SessionLocal()
     try:
@@ -225,3 +225,24 @@ def download_single_video(url: str, tag_name: str | None = None, log_id: int | N
         _set_progress("", 0, 0, status="idle")
         state.clear()
         db.close()
+
+
+# ── Public entry points ──────────────────────────────────────────────────────
+# Each runs its implementation above in a fresh child process (see
+# app.tasks.isolated), so it always uses the yt-dlp currently on disk.
+
+def download_all_channels(manual: bool = False):
+    """Download every subscribed channel. Scheduled runs (manual=False) honor the pause setting."""
+    from app.tasks.isolated import run_isolated
+    run_isolated(__name__, "_download_all_channels", manual=manual, wait=manual)
+
+
+def download_single_channel(channel_id: int):
+    from app.tasks.isolated import run_isolated
+    run_isolated(__name__, "_download_single_channel", channel_id)
+
+
+def download_single_video(url: str, tag_name: str | None = None, log_id: int | None = None):
+    """Download a single video URL without a channel subscription."""
+    from app.tasks.isolated import run_isolated
+    run_isolated(__name__, "_download_single_video", url, tag_name, log_id)

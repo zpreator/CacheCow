@@ -34,10 +34,10 @@ async def lifespan(app: FastAPI):
             # Add jobs before starting, using the saved interval
             from app.tasks.download import download_all_channels
             from app.tasks.cleanup import cleanup_old_files
-            from app.tasks.update_ytdlp import update_ytdlp
             scheduler.add_job(download_all_channels, "interval", minutes=s.minutes_between_runs, id="scheduled-download", jitter=SCHEDULE_JITTER_SECONDS, replace_existing=True)
             scheduler.add_job(cleanup_old_files, "interval", hours=24, id="daily-cleanup", replace_existing=True)
-            scheduler.add_job(update_ytdlp, "interval", hours=24, id="daily-ytdlp-update", replace_existing=True)
+            # yt-dlp is upgraded right before each download run (app.tasks.isolated),
+            # so there is no separate daily update job.
         scheduler.start()
     finally:
         db.close()

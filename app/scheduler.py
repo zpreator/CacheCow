@@ -32,7 +32,6 @@ def start() -> None:
     """Start the scheduler with default jobs if not already running."""
     from app.tasks.download import download_all_channels
     from app.tasks.cleanup import cleanup_old_files
-    from app.tasks.update_ytdlp import update_ytdlp
 
     if not scheduler.running:
         if not scheduler.get_job("scheduled-download"):
@@ -49,14 +48,6 @@ def start() -> None:
                 "interval",
                 hours=24,
                 id="daily-cleanup",
-                replace_existing=True,
-            )
-        if not scheduler.get_job("daily-ytdlp-update"):
-            scheduler.add_job(
-                update_ytdlp,
-                "interval",
-                hours=24,
-                id="daily-ytdlp-update",
                 replace_existing=True,
             )
         scheduler.start()
