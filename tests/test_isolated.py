@@ -1,4 +1,5 @@
 import importlib
+import shutil
 import sys
 import threading
 import time
@@ -78,7 +79,10 @@ def test_child_imports_module_as_it_is_on_disk_now(tmp_path, monkeypatch):
     old = importlib.import_module("fakelib_pkg")
     assert old.VERSION == "old"
 
-    (pkg / "__init__.py").write_text("VERSION = 'new'\n")  # "pip upgrade"
+    # "pip upgrade": new source, and drop the cached bytecode like pip does when
+    # it replaces a package (same size + same mtime second would reuse the .pyc).
+    (pkg / "__init__.py").write_text("VERSION = 'new'\n")
+    shutil.rmtree(pkg / "__pycache__", ignore_errors=True)
     run("report_module_version", "fakelib_pkg")
     assert importlib.import_module("fakelib_pkg").VERSION == "old"  # parent: stale
     assert state.progress["version"] == "new"                      # child: fresh
